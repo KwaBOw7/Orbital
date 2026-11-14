@@ -1,39 +1,28 @@
-# Data provenance and modelling assumptions
+# ORBITAL v0.3.1 data and model provenance
 
-Catalogue schema 1 / game version 0.1.0 / 14 November 2026.
+The game distinguishes sourced context, application-derived quantities and authored assumptions. No NASA data source validates an unrelated hardware field merely by being connected to the app.
 
-The source design brief is the user-supplied `Space_Mission_Design_Game_Report(1).docx`, including its four interface images. Its named dashboard reference was inspected for colours, compact navigation, panels and telemetry layout. No external code, image or font assets are copied into the playable build.
-
-| Data | Status | Units / applicability |
+| Item | Current origin | Fidelity / effect |
 | --- | --- | --- |
-| 80% imagery target, 72-hour deadline | Design brief / game rules | Fraction of unique usable target area returned after deployment |
-| 70 Wh, 20 Wh reserve, 120 W / 80 W example | Design brief / illustrative | Used directly by the Basic-power eclipse lesson |
-| Career scoring and 35-Trust example | Design brief / game rules | Improvement-only credit, attempts at launch |
-| Hardware tiers, masses, costs and dimensions | Authored game tuning | kg; credits; m; tiers Basic/Average/Best/Excellent |
-| Electrical values | Authored game tuning | Continuous W; battery Wh; solar W only during daylight |
-| Imaging / storage / downlink | Authored game tuning | GB; GB/min; 720 equal area tiles; 15 unique target tiles per orbit |
-| Carrier allocations and fairings | Authored game tuning | LEO rideshare allocation kg; stowed m; credits |
-| Falcon 9 / Ariane 6 / H3 / LVM3 names | Design brief roster | Names only; demo configurations are not operator offerings |
-| 500 / 700 km orbit windows | Authored game tuning | Minutes; fixed repeating schedules, not real ephemerides |
-| Volta Basin flood scenario | Fictional educational scenario | No live emergency or remote-sensing data |
-| Six-hour weather hold | Authored deterministic rule | Seed 774; 22 m/s first window, 14 m/s next window |
-| Development time | Authored game tuning | Max hardware lead time + 10-day integration; 50-day limit |
+| Earth hardware, budgets, launch allocations and tier values | Authored catalogue | Game trade-offs; no verified manufacturer specifications |
+| Earth orbit, target passes, eclipses and radio contacts | Fixed authored schedules | No propagated ground track or geometry-dependent availability |
+| Volta Basin target ledger | Synthetic 720-tile scenario | Not a flood map, current emergency assessment or measured area |
+| SAR resolution/data/power | Authored per-tier values | No incidence/swath/radiometric/pointing model |
+| Link rate | Authored GB/min during fixed contact intervals | No RF link budget or atmospheric attenuation |
+| Earth power | Constant W between events; Wh storage and reserve thresholds | Arithmetic tested; no angle, degradation or battery-chemistry validation |
+| Weather, launch and thermal behavior | Game constraints | No probability, ascent, drag or thermal dynamics |
+| Mars chassis, services, profiles and contact windows | Authored rules | Configurable game mission, not actual launch or relay availability |
+| Mars descent altitude and speed | Interpolated authored checkpoints | No atmosphere/drag/parachute/engine trajectory solver |
+| Rover movement | Simplified kinematics on procedural height field | Battery, slope and boundary checks; no suspension or rock collision |
+| Terrain and landing coordinates | User-supplied procedural terrain | Local x/z survey coordinates, not geographic Jezero reconstruction |
+| DONKI reports | NASA feeds through optional Python service | Dated context only; no mission mechanics/scoring effect |
+| Imported Horizons state vectors | User-selected pack with claimed source/manifest | Integrity and schema checked; import alone does not prove authorship |
+| Intermediate geometry and range | Application Hermite interpolation, vector norm | Derived estimate; dense-reference accuracy validation pending |
+| Ideal communication delay | Instantaneous geometric range / 299792.458 km/s | Not retarded light time, relay/processing latency or link availability |
+| Hubble, rocket and rover visuals | Supplied reference scene/model assets | Visual stand-ins; not verified engineering assemblies |
 
-A fairing comparison uses the stowed bus envelope with integrated equipment allowance, not the deployed solar-panel span. Seven required subsystems occupy dedicated bus mounts. Each optional upgrade occupies one dedicated mount on its compatible parent. The renderer uses reusable semantic box IDs and local positions; it is not a full mechanical fit or collision solver.
+A 500/700 km label does not make the repeating orbit schedule a propagated solution. Hubble is a telescope visualization used at the user's request for the Earth mission, not a radar Earth-observation platform. Fairing checks compare a game envelope; they do not test mesh collisions. Scene altitude is compressed for visibility while the HUD displays the illustrative mission timeline.
 
-The SAR operates throughout eclipse in Eclipse scan mode, but the target is visible only during the final 15 minutes. With 70 Wh and 120 W, imaging sheds at eclipse minute 25, so five minutes of the target opportunity are lost. Sunlit target mode only operates the radar during its sunlit pass. Image data from repeat day/night views contributes only to not-yet-collected fractions of a tile. SAR quality is assumed usable independent of clouds; displayed resolution is an illustrative tier attribute, not a propagated optics/pointing model.
+The offline game does not request NASA data. The optional NASA launcher and Horizons batch downloader are separate acquisition routes; their limits and prior evidence are documented in NASA_DATA.md. No sourced Horizons starter pack or actual flood imagery is bundled.
 
-Launcher fuel capacity is intentionally not modelled because the carrier is an injection service. Spacecraft propellant is tracked separately: 12 kg launch mass, 2 kg for deployment, 10 kg remaining. Only the LEO route is supported. More ambitious routes need validated performance and a suitable mission model before being marked playable.
-
-NASA/JPL Horizons, Small-Body Database, NASA technical reports and launcher operator documents are proposed sources in the design brief; they have not been imported or validated in this release. Future imports should record source URL/document revision, units, applicable configuration, date, and sourced/derived/tuned status for each field. Do not relabel these game settings as sourced hardware data.
-
-
-## v0.2.0 flight view
-
-Reference: https://eyes.nasa.gov/apps/mars2020/ and the user's supplied Mars descent screenshot. The page shell was accessible, but its WebGL scene did not render in the inspection browser. NASA's public Mars 2020 landing-sequence material informed phase ordering; this version does not reproduce a verified trajectory. Descent telemetry is piecewise linear interpolation of illustrative checkpoints. Surface traversal, three relay intervals, two-minute transmission and three-hour deadline are invented game parameters. Generated Earth and Mars background artwork and CSS spacecraft markers are illustrative, not scientific imagery or NASA assets. A static scene does not change with altitude or propagate real geography.
-
-### Mars visual assets, v0.2.3
-Terrain functions adapted from user-supplied `Mars Mountain View.html`; rover geometry from user-supplied `mars_rover.stl` (5,172 triangles). These are visual assets, not measured NASA terrain or a reconstructed landing. Camera altitude is compressed to keep the rover and landscape visible. The mission HUD retains the existing simplified practice telemetry. Material colors are applied locally because STL contains geometry only. Three.js is bundled locally under its existing MIT license. No external fonts, texture downloads or CDN are required. Model source/redistribution provenance beyond the user's supplied files has not been established.
-
-### v0.3.0 mission configuration
-Scout, Surveyor and Pathfinder are fictional gameplay configurations of the supplied rover mesh. Courier, Voyager and Atlas Heavy are fictional transfer services and all use the supplied generic rocket mesh. The arrival profiles and relay schedules are gameplay settings, not actual ephemerides or availability predictions. Imported NASA packs remain separately identified and pinned for context; these rules do not turn the visuals into live telemetry. Hubble is used as the user-requested visual stand-in for the radar Earth observation mission, not as a claim that Hubble observes Earth with that instrument.
+See ASSET_PROVENANCE.md for asset identities and unresolved permissions. See AUDIT_REVIEW.md for sources and the proposed validation sequence. All six critical scientific requirements in the submitted audit remain open.

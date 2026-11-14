@@ -48,13 +48,14 @@ function stopMars() {
 }
 
 function marsStatus() {
+  if(marsRun.aborted)return 'Mission ended by commander';
   if (marsRun.relayed) return 'Mission accomplished';
   if (marsRun.t >= marsDeadline) return 'Mission deadline reached';
   return marsRun.task?.name || 'Surface operations';
 }
 
 function advanceMars(to) {
-  if(marsRun.manual){MarsMission.advance(marsRun,to);save();return;}
+  if(marsRun.manual){MarsMission.advance(marsRun,to);MarsMission.settle(marsRun,state.career,E.reward);save();return;}
   if (marsRun.relayed || marsRun.t >= marsDeadline) return;
   marsRun.t = Math.min(marsDeadline, Math.max(marsRun.t, to));
   const task = marsRun.task;
@@ -149,14 +150,14 @@ function operations() {
   return `<div class="flight-title"><div><span class="eyebrow">ORBITAL / MISSION CONTROL</span><h2>Earth operations</h2></div><span class="tag">${running?'SIMULATION RUNNING':'PAUSED · READY FOR YOUR COMMAND'}</span></div>${flightScene('earth',data,flightControls('','Next event','Run to mission end',data.elapsed))}<div class="flight-panels"><section class="panel pad"><h3>Operations plan</h3>${planEditor(state.run.design.plan)}${btn('End flight early','abort','ghost compact')}</section><section class="panel pad"><h3>Resource trace</h3><div id="flight-trace">${chart(state.run)}</div><p class="tiny muted">Blue: battery / ${state.run.stats.capacity} Wh · Green: storage / ${state.run.stats.storage} GB</p></section><section class="panel pad"><h3>Flight log</h3><div id="flight-events">${eventList(state.run)}</div></section></div>`;
 }
 function marsFlight() {
-  const data=marsFlightData(),actions=marsActions(),done=marsRun.relayed||marsRun.t>=marsDeadline;
+  const data=marsFlightData(),actions=marsActions(),done=marsRun.manual?MarsMission.finished(marsRun):marsRun.relayed||marsRun.t>=marsDeadline;
   return `<div class="flight-title"><div><span class="eyebrow">ORBITAL / MISSION CONTROL</span><h2>Mars descent & exploration</h2></div><span class="tag">INTERACTIVE 3D · ILLUSTRATIVE TERRAIN</span></div>${flightScene('mars',data,done?`<div class="flight-controls"><strong>${marsRun.relayed?'Science delivered. Mission complete.':'Mission ended before science delivery.'}</strong>${btn('Replay mission','mars-restart','primary compact')}</div>`:flightControls('mars-','Next event',marsRun.t<marsLanding?'Skip to landing':'End mission',data.elapsed,marsSpeed))}<div id="mars-geometry">${typeof OrbitalDataUI!=='undefined'?OrbitalDataUI.geometryPanel(marsRun.dataPack,marsRun.t):''}</div>${marsRun.manual?marsManualPanels():`<div class="flight-panels mars-panels"><section class="panel pad"><h3>Surface commands</h3><p class="description">Land, visit three waypoints, analyze two rocks and relay the results before T+03:00. Advance to the next event to finish a command immediately.</p><div class="row wrap">${btn('Drive to next waypoint','mars-drive','compact',actions.drive?'':'disabled')}${btn('Analyze rock','mars-sample','compact',actions.sample?'':'disabled')}${btn('Relay results','mars-relay','compact',actions.relay?'':'disabled')}</div></section><section class="panel pad"><h3>Mission objectives</h3><p class="description">${marsRun.t>=marsLanding?'✓':'○'} Safe landing &nbsp; · &nbsp; ${marsRun.visited}/3 waypoints &nbsp; · &nbsp; ${marsRun.rocks}/2 rock analyses &nbsp; · &nbsp; ${marsRun.relayed?'✓':'○'} Science returned</p><p class="tiny muted">Practice scenario · progress lasts for this session · simplified timing and telemetry; not a flight reconstruction.</p><a class="reference-link" href="https://eyes.nasa.gov/apps/mars2020/" target="_blank" rel="noopener noreferrer">Explore NASA’s Mars 2020 experience ↗</a></section></div>`}`;
 }
 function handleMars(action) {
   if(action==='open'){if(state.run&&!state.run.finished){toast('Finish the active Earth mission first.');return;}pause();marsRun??=freshMars();state.page='mars';render();window.scrollTo(0,0);return;}
   if(!marsRun)return;
   if(action==='back'){stopMars();goto('mission');return;}
-  if(action==='restart'){stopMars();const design=marsRun.design;const pack=marsRun.dataPack;marsRun=design?MarsMission.launch(design):freshMars();marsRun.dataPack=pack;render();return;}
+  if(action==='restart'){stopMars();const design=marsRun.design;const pack=marsRun.dataPack,mode=marsRun.mode||'practice';marsRun=design?MarsMission.launch(design,mode,state.career):freshMars();marsRun.dataPack=pack;render();return;}
   if(action==='control'){if(!marsRun.manual||marsRun.t<marsLanding||MarsMission.finished(marsRun)||marsRun.task)return;stopMars();marsSpeed=1/60;handleMars('play');$('#mars-canvas')?.focus();return;}
   if(action==='play'){
     if(marsTimer){stopMars();render();return;}

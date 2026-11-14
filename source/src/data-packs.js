@@ -24,14 +24,22 @@ function validate(pack){
  let previous;for(const s of d.samples){if(Object.keys(s).sort().join(',')!=='epochUtc,idealDelaySeconds,positionKm,rangeKm,velocityKmS')fail('Unknown sample fields');const t=epoch(s.epochUtc);if(previous!==undefined&&t-previous!==3600000)fail('Duplicate or missing epoch');previous=t;for(const field of ['positionKm','velocityKmS'])if(!Array.isArray(s[field])||s[field].length!==3||!s[field].every(Number.isFinite))fail('Invalid or missing vector');const range=Math.hypot(...s.positionKm);if(!(range>1e6&&range<1e9)||s.velocityKmS.some(v=>Math.abs(v)>200)||!Number.isFinite(s.rangeKm)||!Number.isFinite(s.idealDelaySeconds)||Math.abs(s.rangeKm-range)>1e-5||Math.abs(s.idealDelaySeconds-range/C)>1e-8)fail('Invalid range or light-time conversion');}
  const first=d.samples[0].epochUtc,last=d.samples.at(-1).epochUtc;
  if(m.coverage?.start!==first||m.coverage?.end!==last||m.coverage?.stepSeconds!==3600)fail('Coverage mismatch');
- const q=m.request;if(!q||q.COMMAND!=="'499'"||q.CENTER!=="'500@399'"||q.EPHEM_TYPE!=="'VECTORS'"||q.VEC_CORR!=="'NONE'"||q.TIME_TYPE!=="'UT'"||q.OUT_UNITS!=="'KM-S'"||q.REF_SYSTEM!=="'ICRF'"||q.STEP_SIZE!=="'1 h'"||q.START_TIME!=="'"+first.slice(0,10)+"'"||q.STOP_TIME!=="'"+last.slice(0,10)+"'")fail('Request provenance mismatch');
+ const q=m.request;if(!q||q.COMMAND!=="'499'"||q.CENTER!=="'500@399'"||q.EPHEM_TYPE!=="'VECTORS'"||q.VEC_CORR!=="'NONE'"||q.TIME_TYPE!=="'UT'"||q.OUT_UNITS!=="'KM-S'"||q.REF_SYSTEM!=="'ICRF'"||q.REF_PLANE!=="'FRAME'"||q.VEC_TABLE!=="'2'"||q.STEP_SIZE!=="'1 h'"||q.START_TIME!=="'"+first.slice(0,10)+"'"||q.STOP_TIME!=="'"+last.slice(0,10)+"'")fail('Request provenance mismatch');
  return clone(pack);
 }
 function geometry(pack,at){
  if(!pack)return {status:'missing'};const t=typeof at==='number'?at:epoch(at),m=pack.manifest;
  if(!Number.isFinite(t)||t<epoch(m.coverage.start)||t>epoch(m.coverage.end))return {status:'outside'};
- const samples=JSON.parse(pack.data).samples,index=Math.round((t-epoch(m.coverage.start))/3600000),s=samples[index];
- return {status:'calculated',...clone(s),requestedEpochUtc:new Date(t).toISOString(),sampleOffsetSeconds:(epoch(s.epochUtc)-t)/1000};
+ const samples=JSON.parse(pack.data).samples,offset=(t-epoch(m.coverage.start))/3600000,lo=Math.floor(offset),hi=Math.min(samples.length-1,lo+1),a=samples[lo],b=samples[hi];
+ const requestedEpochUtc=new Date(t).toISOString();
+ if(t===epoch(a.epochUtc)||lo===hi)return {status:'calculated',...clone(a),requestedEpochUtc,sampleOffsetSeconds:0,method:'sample',bracketEpochs:[a.epochUtc,a.epochUtc]};
+ // Application-derived cubic Hermite interpolation using endpoint positions (km)
+ // and velocities (km/s). It is not a new Horizons observation or accuracy guarantee.
+ const h=(epoch(b.epochUtc)-epoch(a.epochUtc))/1000,u=(t-epoch(a.epochUtc))/1000/h,u2=u*u,u3=u2*u;
+ const positionKm=a.positionKm.map((p,i)=>(2*u3-3*u2+1)*p+(u3-2*u2+u)*h*a.velocityKmS[i]+(-2*u3+3*u2)*b.positionKm[i]+(u3-u2)*h*b.velocityKmS[i]);
+ const velocityKmS=a.positionKm.map((p,i)=>((6*u2-6*u)*p+(-6*u2+6*u)*b.positionKm[i])/h+(3*u2-4*u+1)*a.velocityKmS[i]+(3*u2-2*u)*b.velocityKmS[i]);
+ const rangeKm=Math.hypot(...positionKm);
+ return {status:'calculated',epochUtc:requestedEpochUtc,requestedEpochUtc,positionKm,velocityKmS,rangeKm,idealDelaySeconds:rangeKm/C,sampleOffsetSeconds:0,method:'cubic-hermite',bracketEpochs:[a.epochUtc,b.epochUtc]};
 }
 return {validate,geometry,sha256,epoch,MAX};
 });

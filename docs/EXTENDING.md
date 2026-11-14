@@ -1,23 +1,23 @@
-# Extending ORBITAL
+# ORBITAL v0.3.1 extension guide
 
-The first mission proves the full engineering loop. Keep the event simulator independent of rendering and preserve the catalogue schema when extending it.
+## Source boundaries
 
-## New components
+`engine.js` owns Earth event/resource and career rules. `mars-engine.js` owns Mars configuration, movement, tasks and settlement. `mars-ui.js` owns the Mars setup flow. `data-packs.js` validates geometry and derives interpolation; `data-ui.js` imports/exports and pins it. `launcher.py` acquires and caches DONKI. Scene code is visual-only except that rover input passes into the Mars engine.
 
-Add a catalogue record with an ID, category, parent mount, mass, cost, power, dimensions, lead time, visual asset ID and four-entry arrays for supported tier attributes. Higher tiers should have a meaningful performance trade-off. Add the same semantic asset ID to the renderer, define its local placement and keep the stowed envelope consistent. All existing tiers increase mass and cost; power, computer, comms, radar and upgrades have explicit performance arrays. Higher bus, attitude, thermal and propulsion tiers reduce housekeeping power in the demo.
+## Scientific upgrades
 
-## New orbit profile
+Follow AUDIT_REVIEW.md before extending simulation scope. Keep the existing authored model explicitly labelled for legacy saves. A propagated engine must use a new model/version identifier: record initial epoch, frame, elements/state vector, force model and data versions in each run. Do not silently reinterpret older game-schedule saves under new physics. Match independent fixtures and define error tolerances before making science-accuracy claims.
 
-Add its ID, altitude, period, eclipse boundaries, target windows, contact windows and supported injection. The existing Earth-observation model assumes two 15-minute day/night views of the same 15-tile strip per orbit and nonoverlapping imaging/contact windows. A new orbit must preserve these invariants or update the engine with overlap-aware simultaneous collection/transmission. Add hand-calculated battery and data tests before enabling it.
+A new parameter needs units, allowed range, source/configuration/date, sourced/derived/assumed status and a behavior test. Changing display labels is not engineering validation. Do not use a planet-center vector to infer surface station, relay satellite or terrain geometry.
 
-## New mission type
+## Missions and assets
 
-The menu entries for the four future missions deliberately do not launch the EO simulator under another title. Each needs a validated scenario model: route, events, capability requirements, operations, objective ledger and report explanations. Reuse preflight, resource integration, event scheduling, persistence, career accounting and UI stages; isolate mission-specific collection and route logic behind a scenario adapter before enabling the card. Landing, terrain driving, rendezvous and telescope pointing must not be reduced to unsupported EO parameters.
+Earth and Mars are playable. Lunar, asteroid and telescope are separate planned systems; do not relabel the Earth engine as a new mission. Physical models must retain source and permission records in ASSET_PROVENANCE.md. Models do not substitute for mechanical envelope/collision checks.
 
-## Replacement 3D assets
+## Saves and career
 
-`src/renderer.js` keeps semantic component IDs and reusable box dimensions/positions. Replace the renderer behind `OrbitalView.attach`, `detach` and `action`; the deterministic engine must remain unchanged. New artwork should be bundled and licensed for offline redistribution. Record mesh attachment points and stowed bounds. Batch repeated geometry when profiling shows a benefit.
+Earth saves reconstruct a run from inputs/history; Mars saves validate and restore their snapshot. Preserve mode, attempts, distinct scenario best and committed rewards across save/replay. New Mars modes absent from older saves default to Practice. A completed career result must settle exactly once. Never award retroactive points simply because a previous release gains a new feature.
 
-## Persistence
+## Release
 
-Saves record inputs and command history, not trusted arbitrary simulator internals. Import reconstructs active flights with the same engine. Increment the save version and add a migration if modifying event semantics or catalogue meanings. Preserve attempt counts and the committed-report flag so resume never re-awards career points.
+Version in package.json and data/catalog.json must agree. Update current README/RELEASE/VALIDATION/GITHUB_PROGRESS/DATA_PROVENANCE documents rather than appending contradictory old summaries. Run both test suites, rebuild both HTML variants, package, verify checksums and inspect exported launchers. Preserve offline Play and optional Start-NASA separation.

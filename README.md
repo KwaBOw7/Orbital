@@ -1,114 +1,79 @@
-# ORBITAL — Space Mission Design Game
+# ORBITAL v0.3.1 — Space Mission Design Game
 
-ORBITAL 0.2.2 is an offline Earth-observation game based on the supplied Space Mission Design Game report. Assemble a satellite, select a carrier, clear preflight, operate a 72-hour radar mapping mission and revise the design from the results.
+An offline educational game with configurable Earth-observation and Mars-rover missions. **This is not a validated spacecraft mission-design tool.** Hardware values, orbit windows, relay schedules, flood targets, descent checkpoints and terrain are authored game assumptions. NASA reports and optional ephemeris packs provide separately labelled context.
 
-## Play
+## Choose a launch mode
 
-Open `index.html` from the release folder in your desktop browser. You can also use `Play-Linux.sh`, `Play-Windows.cmd` or `Play-macOS.command`. No server, internet connection, account, package installation or Python is needed. Keep the file in a stable folder so the browser can retain its local save. Use **Export save** before moving files, switching browsers or clearing browser data.
+| Mode | Files to run | Requirements |
+| --- | --- | --- |
+| Standalone offline game | `index.html`, `Play-Linux.sh`, `Play-macOS.command` or `Play-Windows.cmd` | Desktop browser only. These scripts do not start Python or NASA services. |
+| Game with optional NASA reports | `Start-NASA-Linux.sh`, `Start-NASA-macOS.command` or `Start-NASA-Windows.cmd` | Python 3 and the extracted ZIP. Save your NASA key in `API.txt` beside `launcher.py` to enable requests. |
+| NASA launcher with provider access off | `python3 launcher.py --offline` (Windows: `py -3 launcher.py --offline`) | Python 3; cached reports remain usable. |
 
-This release runs as a local browser application, not a native desktop executable. An existing modern desktop browser is the only player runtime dependency. Chrome/Chromium was exercised during development. Firefox, Safari, Windows and macOS launchers have not been exercised on their native platforms. Local-file browser storage behavior can differ; save export/import is the portable fallback.
+The NASA scripts run the local Python service and open the browser. Keep their terminal running; Ctrl+C stops the service. Arguments such as `--port 8766`, `--offline` and `--no-browser` are forwarded. The `Play-*` scripts only open the offline HTML. Double-clicking a shell script depends on OS/file-manager preferences; running it in a terminal is the reliable fallback.
 
-## First flight
+Use a stable folder for local saves. Export saves before moving files, changing browser or clearing data. No source API key or runtime cache is included in the ZIP. This is a local browser app, not a native binary.
 
-1. Choose **Configure mission**. Start with **Balanced** (default).
-2. Inspect components. **Required** contains eight subsystems; **Upgrades** adds a battery, antenna or compression processor. Select a part, choose its tier and inspect cost, mass and other values. Drag the model to rotate; use the view controls to explode, change zoom or toggle wireframe.
-3. Choose a 500 km or 700 km operating orbit. Select the planned imaging schedule. Day and night opportunities cover the same area: repeat imaging never creates extra unique coverage.
-4. Review preflight. The fixed demonstration seed starts with a 22 m/s crosswind, above the 18 m/s game limit. Choose **Fast-forward to launch window** to advance six simulated hours instantly. The science clock starts after deployment, so that delay does not shorten the 72-hour science period.
-5. Launch. Time begins paused. Use **Play**, select 1, 10, 60 or 240 simulated minutes per second, choose **Next event**, or **Run to mission end**. Change imaging and downlink policy during flight if needed. Spacebar toggles pause when keyboard focus is outside a control.
-6. Review the report. Blue coverage means unique usable imagery delivered to Earth. Data still onboard earns no science credit. Choose **Revise design** or **Replay same conditions**.
+## Earth mission
 
-## Interactive 3D references
+1. Choose **Configure mission** and inspect required parts and optional upgrades. Tier choices change mass, power, storage and cost. Hubble is the requested visual stand-in; it is not the actual radar spacecraft being calculated.
+2. Select a 500 km or 700 km game orbit profile and imaging/downlink plan.
+3. Review the rocket, budget, fairing-envelope and crew checks. Use **Fast-forward to launch window** when weather blocks the first demonstration window.
+4. Launch and operate the mission with Play/Pause, speed controls, Next event and Run to mission end. The 72-hour clock starts at deployment.
+5. Return at least 80% of the synthetic target area. Only delivered, unique imagery counts. Review the report and replay or revise the design.
 
-- In Earth Observation Satellite assembly, choose **View Hubble 3D**. Drag to rotate, scroll to zoom, select a part for its description, or use the exploded view.
-- In Rocket selection & preflight, choose **View rocket 3D**. The generic launcher has an exploded view and an engine preview.
-- The supplied models are educational references. Assembly parts and preflight specifications come from the game catalogue. The detailed views use WebGL when available and can render with Canvas on other browsers. The assembly schematic and launch diagram are available in the regular screens.
-- The scenes and the Three.js r128 MIT license are bundled in `source/assets/`. Both viewers work without internet. Run `python3 launcher.py` from the extracted release to use the optional NASA reports instead of the standalone `index.html`.
+The baseline Balanced, Lean and Eclipse lesson designs return approximately 97.9167%, 99.8611% and 65.2778% under the unchanged default rules. These are regression examples, not real satellite performance predictions.
 
-## Three starter designs
+## Mars mission
 
-| Starter | Plan | Battery | Expected returned coverage | Result |
-| --- | --- | --- | --- | --- |
-| Balanced | Eclipse scan | 120 Wh | 97.9167% | Pass |
-| Lean | Sunlit target passes | 70 Wh | 99.8611% | Pass |
-| Eclipse lesson | Eclipse scan | 70 Wh | 65.2778% | Objective missed |
+1. **Rover:** choose Scout, Surveyor or Pathfinder. The three profiles share the supplied rover mesh with different gameplay properties.
+2. **Parts:** install all eight required subsystems; choose four performance tiers. Advanced add-ons include drill, storage, mobility kit and high-gain antenna.
+3. **Rocket:** choose Courier, Voyager or Atlas Heavy. These fictional services share the existing rocket model and have different payload/cost limits.
+4. **Orbit:** select direct entry, elliptical or polar Mars staging. Insertion mass, price and authored relay windows differ. Choose Practice or Career and pass preflight.
+5. **Control:** launch/cruise are summarized; the view starts at Mars entry. Play the illustrative descent or skip to landing. Click **Drive · WASD** to focus the canvas and start real-time control.
 
-These results use the default 500 km profile, continuous scheduled downlink, Basic radar, Average computer and Average communications. All include successful launch and deployment. The last pass may leave unsent data at the deadline.
+| Input | Action |
+| --- | --- |
+| W / S or up / down | Forward / reverse |
+| A / D or left / right | Steer |
+| Space | Brake |
+| X / C / T | Analyze rock / drill core / relay science |
+| Drag or Q / E | Orbit camera |
+| Scroll or + / −; R | Zoom; reset camera |
 
-The lesson starts each eclipse with 70 Wh, draws 120 W while scanning and hits the 20 Wh reserve after 25 minutes. Imaging is shed at that instant; the 80 W essential load continues, so energy exits the 30-minute eclipse at 13.3333 Wh. With sunlit imaging, the eclipse only draws 80 W and exits at 30 Wh.
+Drive within 6 m of the three cyan markers, analyze both rock sites and send the results during a relay contact. A drill plus extra storage allows bonus cores. Driving uses energy and is constrained by slope and survey bounds. Pause, loss of focus, tab hiding or leaving the view stops movement. Science tasks require Play or Next event to finish. Rock collision, wheel suspension and georeferenced terrain are not implemented.
 
-## Local profiles and co-op
+## Saves and progression
 
-Guest mode plays practice missions. A local commander name enables career mode. One career is stored per browser/file location; renaming preserves it. Export separate saves to manage multiple careers. Shared-screen co-op assigns up to four named roles. Each assigned role must approve the launch; design, plan, orbit, rocket and window changes clear approvals. This is local shared-screen cooperation, not online multiplayer.
+Earth and Mars designs, launched missions and pinned geometry packs are included in local saves and export/import. Mars also saves position, energy, samples and active task. Import validation runs before the existing session is replaced; the UI asks the player to confirm replacement. Earlier Earth saves remain supported. Older Mars saves without a mode load as Practice; no retroactive points are granted.
 
-Autosave preserves the design, profile, paused mission and command history. Reopening the page reconstructs the active mission deterministically, without counting another launch. An interrupted replay retains its pending commands. Imported saves are validated before use and replace the session only after the player confirms.
+A local profile enables Career. Every successful career launch counts one attempt. Failure or abandoning a launched mission counts once. Only improvement over a scenario's best base score earns credit. Earth and Mars use distinct scenario keys. At 100 carried Success, the existing Trust rule is `10 + 5 × overflow`, then Success resets to zero. Mars base score: 20 landing + 10 per site + 15 per rock + 20 returned science, maximum 100. Returned cores grant separate science bonus points and do not expand the career base-score cap. Replay cannot farm repeated best scores. Practice never changes career totals.
 
-Career awards 20 launch points, 20 deployment points, and up to 60 points proportional to the 80% coverage objective. Only improvement over the scenario's previous best is credited. At 100 carried Success, Trust increases by `10 + 5 × overflow`, then Success resets to zero. `80 + 25` gives `35 Trust`. Every career launch is an attempt; an objective miss or early termination is one failure. Blocked checks and weather holds count zero attempts. Practice never changes career counters.
+Shared-screen Earth co-op supports up to four roles with approvals. Mars currently has single-player configuration/control; it does not reuse Earth crew approvals. There is no online multiplayer.
 
-## Engineering model and limits
+## NASA data and model fidelity
 
-All numeric catalogue values, carrier allocations, prices, weather, orbital schedules and science parameters are explicitly **game settings**. These are not validated SpaceX, Arianespace, JAXA, ISRO or NASA performance data. No real flood observations are included. See `docs/DATA_PROVENANCE.md`.
+- DONKI reports use the Python service, cache locally and refresh at most every 15 minutes. They are latest-available event reports, not spacecraft telemetry, and do not modify mission physics or scoring.
+- Horizons geometry packs are acquired separately with `source/tools/nasa_data.py`, then imported via Data settings. They are pinned per mission and can be exported/rolled back. API.txt is for DONKI, not Horizons.
+- Exact pack epochs use supplied samples. Intermediate epochs use application-derived cubic Hermite interpolation of position/velocity; range is recomputed from the vector. No extrapolation is allowed. Dense-reference accuracy testing is pending.
+- No real Volta flood imagery, sourced engineering catalogue or certified NASA model is bundled. Earth orbit/eclipses/contacts are scheduled. Mars descent is interpolated and rendered at compressed altitude. All model and data limits are in `docs/DATA_PROVENANCE.md` and `docs/AUDIT_REVIEW.md`.
+- Earth and Mars are playable. Lunar rover, asteroid and telescope are the three planned missions.
 
-The simulator uses constant rates between event boundaries. It handles sunlight/eclipse transitions, target passes, one-minute target tiles, contacts, battery capacity/reserve/depletion boundaries and player commands. Energy is W × elapsed hours, storage is GB, and communication rate is GB/min. Essential loads continue after imaging is shed. It caps energy, storage, collected area and delivered area. It does not propagate orbital mechanics, simulate ascent fuel, thermal dynamics, attitude dynamics, radio link budgets, weather probabilities or propulsion trajectories.
+## Development and verification
 
-The spacecraft is a draggable box model drawn with a small Canvas painter renderer. Earth, orbital tracks, target ledger and rockets are schematic. Standard system fonts are used; Inter is preferred if installed. This edition contains no remote fonts, textures, scripts, API calls or dependencies. Content Security Policy disables network connections.
-
-Lunar rover, Mars rover, asteroid and telescope missions are shown as explicitly unavailable planned scenarios. The native desktop distribution and validated NASA/JPL/operator data integrations remain future work.
-
-## Source and development
-
-The release includes the complete editable project in `source/`.
+From `source/`, use Node 20+ and Python 3:
 
 ```
 node build.mjs
 node --test tests/*.test.cjs
+python3 -m unittest discover -s tests -p 'test_*.py'
 python3 scripts/package_release.py
 ```
 
-Run these from the source directory. Node 20 or later is needed for development and tests; Python 3 is only used to assemble release archives. There are no package dependencies and no install step. `dist/index.html` is a self-contained game. Double-click it to play after building.
+No npm installation is required; Three.js and visual assets are bundled. `dist/index.html` disables network access. `dist/online.html` permits same-origin access to the optional local service. Each standalone HTML contains its required rendering assets. `SHA256SUMS.txt` covers the staged release files.
 
-- `data/catalog.json`: versioned component catalogue, scenario, orbit windows and carrier service profiles.
-- `src/engine.js`: deterministic DOM-free simulation, resource accounting, preflight and career rules.
-- `src/renderer.js`: Canvas box renderer, independent of simulation time.
-- `src/app.js`: stage navigation, local saves, crew, operations and report interface.
-- `src/style.css` / `src/shell.html`: interface styling and offline document shell.
-- `tests/`: 24 automated tests covering engineering calculations, scoring, replay and persistence.
-- `docs/`: model assumptions, acceptance evidence, extension guide and release status.
+Current validation: **62 Node + 29 Python tests (91 total)**. Linux NASA-service startup was exercised locally in explicit offline mode; macOS script syntax was checked, but native Windows/macOS execution was not. Browser visual checks for this release, Firefox/Safari, mobile, browser import/export acceptance, target-device offline first launch, FPS and memory ceilings remain unverified. Tests establish behavior under the game model, not scientific validity.
 
-See `docs/VALIDATION.md` for measured and unmeasured performance targets. The suggested 60 fps / 500 MB browser targets still need profiling on the intended modest laptop. The measured headless replay benchmark is from the development host, not the user's laptop.
+## Release and GitHub status
 
-## GitHub release status
-
-Source and downloadable release files are prepared. They have **not** been pushed to GitHub, and no public repository or Release has been created. Publishing needs an authorized GitHub connection and a repository destination. See `docs/RELEASE.md` for the intended release contents. Choose the repository visibility and licensing before a public release; this package does not choose a distribution license on the team's behalf.
-
-
-## Flight dashboard and Mars practice (v0.2.0)
-
-Earth operations now has an immersive illustrated background, phase explanation, live telemetry, playback controls, resource trace and event log. Time acceleration processes the same engine events as ordinary play. Launch holds advance instantly; there is no real-time waiting requirement.
-
-Choose **Fly Mars practice** in mission selection for a simplified atmospheric-entry sequence inspired by NASA Eyes on Mars 2020, followed by a rover exercise. Use Next event for descent phases or Skip to landing. On the surface, drive to each of three waypoints, analyze rocks at the second and third, then advance to a relay opportunity and transmit. Commands finish using Play or Next event. Time acceleration pauses at landing, completed commands and idle relay boundaries. This practice session is not saved or exported, and does not award career points. It is not yet a configurable Mars spacecraft mission.
-
-Mars timings, surface tasks and interpolated altitude/velocity are educational game assumptions. Backdrops are AI-generated illustrations; vehicle markers are schematic. No NASA models or live telemetry are embedded. The optional NASA reference link needs an internet connection; all gameplay remains offline.
-
-## v0.2.3 updates
-
-Budgets and prices use `$` (illustrative game amounts). Use **Back** at the upper left to return to the preceding menu; an active Earth flight is paused and can be resumed from mission selection.
-
-Open **Fly Mars practice** for the supplied mountain terrain and rover model. Press **Play** for a slow descent at real-time speed, select a faster rate, or use **Skip to landing**. Drag the view or use arrow keys to orbit, scroll / + / − to zoom, and R or **Reset view** to reset. These visuals remain illustrative, with compressed scene altitude. Terrain detail is reduced automatically when WebGL is unavailable. Everything needed for this scene is embedded in the offline HTML.
-
-## v0.3.0 — build and drive a Mars rover
-
-This replaces the earlier one-click Mars practice entry with **Configure Mars mission**:
-
-1. Choose **Scout**, **Surveyor** or **Pathfinder**. They share the supplied rover mesh with different size, color and gameplay characteristics.
-2. Install the eight required subsystems. Select Basic, Average, Best or Excellent tiers. The Advanced tab offers a core drill, extra science storage, a terrain mobility kit and a high-gain antenna. Add-ons appear as simplified mounted geometry on the supplied rover model.
-3. Choose Courier, Voyager or Atlas Heavy, three fictional Mars launch services using the existing rocket model. Payload and price matter.
-4. Choose direct entry, elliptical Mars parking orbit or polar Mars parking orbit. Insertion mass, cost and relay contacts change. Fix every failed preflight check, then launch.
-5. Flight begins at Mars atmospheric entry; launch and interplanetary cruise are summarized. Play the descent or skip to landing. Click **Drive · WASD** to enable real-time surface control and focus the canvas.
-
-Keyboard: **W/S** forward/reverse, **A/D** steer (arrows also work), **Space** brake, **X** analyze, **C** drill, **T** transmit. **Q/E** orbit the camera; drag also orbits, scroll or +/- zooms, and R resets the view. Driving requires a focused canvas and running playback. Pause, leaving the view, losing focus or hiding the tab stops movement. Science tasks pause driving; use Play or Next event to complete them.
-
-Drive to the cyan markers in order. Enter the 6 m arrival radius, analyze both rock sites and relay the results during a contact window. A drill plus extra storage permits bonus cores. The mission has a 3-hour simulated surface/entry deadline, rechargeable battery, slope limits and a bounded survey area. Rocks are decorative; full wheel suspension and rock collision physics are not implemented.
-
-Your draft design and launched Mars session, including position, battery, samples, active task and pinned data pack, are included in local saves and export/import. The launched design stays fixed when you edit the next mission. Older Earth-only saves still load.
-
-The supplied Hubble model now appears directly in Earth assembly and operations, and the supplied rocket model appears directly in both launch-selection experiences. Hubble is a visual stand-in for the Earth observation mission; Earth hardware values and radar simulation remain those of the selected game design. Existing science/launch model shapes are illustrative, not hardware-accurate visualizations of every tier.
+The downloadable ZIP includes the app, launchers, source, tests, documentation and third-party license. The standalone HTML includes offline gameplay only. Source has not been pushed or published to GitHub. `docs/GITHUB_PROGRESS.md` is a local handoff tracker, not a live GitHub board. Review the unresolved model permissions in `docs/ASSET_PROVENANCE.md` before public redistribution. Do not label the supplied meshes as NASA-verified assets.

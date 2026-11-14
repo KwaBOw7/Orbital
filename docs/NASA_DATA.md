@@ -1,10 +1,10 @@
-# NASA data integration — key-file launcher
+# ORBITAL v0.3.1 NASA data integration
 
 Updated 14 November 2026. This supersedes the earlier UI email setup and CLI-only acquisition plan. The standalone game and its offline guarantees are preserved.
 
 ## Supported flow and modes
 
-A player saves their NASA gateway key as **API.txt** beside `launcher.py`. Run `python3 launcher.py` to open the NASA reports edition. The Play scripts open the standalone game. There is no email entry form, browser key field, account, provider URL proxy or public server. API.txt presence opts a fresh installation into online report updates. Missing key or `--offline` keeps provider access off. A previously selected Offline setting is retained in the local cache directory; Enable NASA updates switches it on again.
+A player saves their NASA gateway key as **API.txt** beside `launcher.py`. Run `Start-NASA-Linux.sh`, `Start-NASA-macOS.command`, `Start-NASA-Windows.cmd` or `python3 launcher.py` to open the NASA reports edition. The Play scripts open the standalone game. There is no email entry form, browser key field, account, provider URL proxy or public server. API.txt presence opts a fresh installation into online report updates. Missing key or `--offline` keeps provider access off. A previously selected Offline setting is retained in the local cache directory; Enable NASA updates switches it on again.
 
 The launcher binds only to `127.0.0.1` and serves the separate `online.html`. All upstream access is in Python. A fixed status route and bounded mode-control route are the only API endpoints. Host validation rejects DNS rebinding; mutations require the exact local Origin and JSON body. API.txt, source files and arbitrary paths are not served. HTML permits only same-origin connections. The standalone `index.html` retains `connect-src 'none'`, contains no network primitives, and needs neither Python nor connectivity.
 
@@ -42,14 +42,13 @@ The latest-data panel shows real-world UTC, query interval, event times and succ
 
 ## Retained geometry-pack work
 
-The offline geometry schema, import/export, IndexedDB rollback and mission snapshots remain intact. A selected pack is pinned at launch; Earth save/replay/report exports include it. Old v1 saves restore without a pack. Mars practice pins a session snapshot but remains session-only.
+The offline geometry schema, import/export, IndexedDB rollback and mission snapshots remain intact. A selected pack is pinned at launch; Earth save/replay/report exports include it. Old v1 saves restore without a pack. Configured Mars missions also persist/export their pinned snapshot, configuration and surface state.
 
 The optional `tools/nasa_data.py` Horizons adapter still supports bounded geometric Mars-relative-to-Earth vectors in ICRF, modern UTC epochs and km/km/s. It requires the separately documented JPL contact User-Agent, sequential cached requests and API-version checking. It is not invoked by the key-file launcher, and its contact form has been removed from the UI. API.txt does not authenticate Horizons. No sourced Horizons starter or successful live Horizons acquisition is claimed.
 
-Geometry packs use an exact ASCII JSON payload plus manifest/checksum, reject executable assets and ZIP imports, and are limited to 512 KB. The local CLI repository retains SQLite indexing, staged activation and prior versions; browser storage commits active/previous packs together. Integrity hashes do not prove official authorship. Range is derived from vector norm; ideal geometric delay divides range by 299792.458 km/s. Nearest hourly samples are labelled, and there is no extrapolation outside coverage. Relay/processing/motion delays are excluded.
+Geometry packs use an exact ASCII JSON payload plus manifest/checksum, reject executable assets and ZIP imports, and are limited to 512 KB. The local CLI repository retains SQLite indexing, staged activation and prior versions; browser storage commits active/previous packs together. Integrity hashes do not prove official authorship. Range is derived from vector norm; ideal geometric delay divides range by 299792.458 km/s. Exact sample epochs are retained. Intermediate epochs use application-derived cubic Hermite interpolation of position and velocity; range and ideal delay are recomputed. Bracketing epochs are displayed. No extrapolation occurs outside coverage, and interpolation error against dense reference data is not yet certified. Relay/processing/motion delays are excluded.
 
 ## Remaining scope
 
-Earth CMR/GIBS quantitative flood products, lunar/Mars PDS terrain, asteroid SBDB targets, exoplanet catalogs, validated engineering values, spacecraft telemetry, configurable Mars spacecraft and other mission mechanics remain deferred. Real data availability does not mark planned missions playable. The existing generated scenes and descent checkpoints remain illustrative. GitHub publication is pending; no repository or issue IDs were invented.
+Earth CMR/GIBS quantitative flood products, lunar/Mars PDS terrain, asteroid SBDB targets, exoplanet catalogs, validated engineering values, spacecraft telemetry and independently validated mission mechanics remain deferred. Real data availability does not mark planned missions playable. The existing generated scenes and descent checkpoints remain illustrative. GitHub publication is pending; no repository or issue IDs were invented.
 
-The source brief available as `Space_Mission_Design_Game_Report.docx` and the integration-plan PDF were read in the earlier slice. The exact `(1).docx` and `ORBITAL-GitHub-tracker.md` filenames were absent. The latest user instruction explicitly replaces the email setup with API.txt and a Python launcher; this current implementation follows that instruction.

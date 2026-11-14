@@ -51,9 +51,9 @@ const MarsMission = (() => {
     {name:'Rocket payload',ok:s.mass<=s.rocket.capacity,detail:s.mass.toFixed(1)+' / '+s.rocket.capacity+' kg'},
     {name:'Landing capacity',ok:s.mass-s.orbit.extraMass<=s.landingCapacity,detail:(s.mass-s.orbit.extraMass).toFixed(1)+' / '+s.landingCapacity+' kg'}
   ];}
-  function launch(d){d=validate(d);if(checks(d).some(c=>!c.ok))throw Error('Mars preflight checks failed');const s=stats(d);return {manual:true,design:clone(d),t:0,visited:0,rocks:0,cores:0,relayed:false,task:null,events:['Atmospheric entry confirmed.'],position:{x:0,z:700,heading:0},energy:s.capacity,distance:0,samples:[],message:'Landing in progress.',dataPack:null};}
+  function launch(d,mode='practice',career=null){d=validate(d);if(checks(d).some(c=>!c.ok))throw Error('Mars preflight checks failed');if(!['practice','career'].includes(mode))throw Error('Invalid Mars mode');if(mode==='career'){if(!career||!Number.isInteger(career.attempts))throw Error('Missing career');career.attempts++;}const s=stats(d);return {manual:true,mode,committed:false,aborted:false,design:clone(d),t:0,visited:0,rocks:0,cores:0,relayed:false,task:null,events:['Atmospheric entry confirmed.'],position:{x:0,z:700,heading:0},energy:s.capacity,distance:0,samples:[],message:'Landing in progress.',dataPack:null};}
   function contacts(r){const s=stats(r.design);return [...s.orbit.relay,...(r.design.parts.antenna!==undefined?[[85,95]]:[])].sort((a,b)=>a[0]-b[0]);}
-  const finished=r=>r.relayed||r.t>=deadline;
+  const finished=r=>r.relayed||r.t>=deadline||!!r.aborted;
   function actions(r){const s=stats(r.design),ready=r.t>=landing&&!finished(r)&&!r.task;const atSite=r.visited>=2&&Math.hypot(r.position.x-waypoints[r.visited-1].x,r.position.z-waypoints[r.visited-1].z)<7;return {sample:ready&&atSite&&r.rocks<r.visited-1&&r.samples.length<s.storage&&r.energy>=12,core:ready&&atSite&&r.design.parts.drill!==undefined&&!r.samples.includes('core-'+r.visited)&&r.samples.length<s.storage&&r.energy>=20,relay:ready&&r.visited===3&&r.rocks===2&&contacts(r).some(([a,b])=>r.t>=a&&r.t+s.upload<=b),drive:ready&&r.energy>2};}
   function task(r,kind){if(!actions(r)[kind])return false;const s=stats(r.design),duration=kind==='sample'?s.analysis:kind==='core'?s.analysis+2:s.upload;if(r.t+duration>deadline)return false;r.task={kind,name:{sample:'Analyzing rock',core:'Drilling a core',relay:'Relaying results'}[kind],end:r.t+duration};if(kind==='sample')r.energy-=12;if(kind==='core')r.energy-=20;return true;}
   function advance(r,to){if(finished(r))return;const target=Math.min(deadline,Math.max(r.t,to));r.energy=Math.min(stats(r.design).capacity,Math.max(0,r.energy+(stats(r.design).solar-stats(r.design).idle)*(target-r.t)/60));r.t=target;if(r.task&&r.t>=r.task.end){const task=r.task;r.task=null;if(task.kind==='sample'){r.rocks++;r.samples.push('rock-'+r.visited);}if(task.kind==='core'){r.cores++;r.samples.push('core-'+r.visited);}if(task.kind==='relay'){r.relayed=true;r.t=task.end;}r.events.push({sample:'Rock analysis saved.',core:'Subsurface core saved.',relay:'Science received on Earth.'}[task.kind]);r.message=r.events.at(-1);}}
@@ -71,8 +71,13 @@ const MarsMission = (() => {
     return true;
   }
   function score(r){return {base:(r.t>=landing?20:0)+r.visited*10+r.rocks*15+(r.relayed?20:0),bonus:r.relayed?r.cores*5:0};}
+  function settle(r,career,reward){
+    if(!finished(r)||r.committed||r.mode!=='career')return r.earned||{credit:0,trust:0};
+    if(!r.relayed||r.aborted)career.failures++;
+    r.earned=reward(career,score(r).base,'mars-survey-01');r.committed=true;return r.earned;
+  }
   function restore(r){
-    if(!r||r.manual!==true)throw Error('Invalid Mars session');const design=validate(r.design),s=stats(design);
+    if(!r||r.manual!==true)throw Error('Invalid Mars session');r=clone(r);r.mode??='practice';r.committed??=false;r.aborted??=false;if(!['practice','career'].includes(r.mode)||typeof r.committed!=='boolean'||typeof r.aborted!=='boolean'||(r.committed&&!finished(r))||(r.mode==='practice'&&r.committed))throw Error('Invalid Mars career state');if(r.earned&&(!r.committed||!Number.isFinite(r.earned.credit)||r.earned.credit<0||r.earned.credit>100||!Number.isFinite(r.earned.trust)||r.earned.trust<0||r.earned.trust>510))throw Error('Invalid Mars reward');const design=validate(r.design),s=stats(design);
     if(checks(design).some(c=>!c.ok))throw Error('Invalid launched Mars design');
     const bounds={t:[0,deadline],visited:[0,3],rocks:[0,2],cores:[0,2],energy:[0,s.capacity],distance:[0,1e7]};
     for(const [k,[min,max]] of Object.entries(bounds))if(!Number.isFinite(r[k])||r[k]<min||r[k]>max)throw Error('Invalid Mars '+k);
@@ -84,6 +89,6 @@ const MarsMission = (() => {
     if(r.task&&(!['sample','core','relay'].includes(r.task.kind)||!Number.isFinite(r.task.end)||r.task.end<r.t||r.task.end>deadline||typeof r.task.name!=='string'||r.task.name.length>100))throw Error('Invalid Mars task');
     return {...clone(r),design,message:typeof r.message==='string'?r.message.slice(0,300):'',position:{...r.position,heading:r.position.heading%(Math.PI*2)}};
   }
-  return {types,parts,rockets,orbits,waypoints,budget,deadline,landing,starter,validate,stats,checks,launch,actions,task,advance,move,contacts,finished,score,restore};
+  return {types,parts,rockets,orbits,waypoints,budget,deadline,landing,starter,validate,stats,checks,launch,actions,task,advance,move,contacts,finished,score,settle,restore};
 })();
 if(typeof module!=='undefined')module.exports=MarsMission;
