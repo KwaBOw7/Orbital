@@ -1,0 +1,461 @@
+{
+  "schemaVersion": 1,
+  "version": "0.1.0",
+  "provenance": "All numerical hardware, launch, orbit and science values in this demo are illustrative game settings, not flight specifications. Vehicle names identify the inspiration only.",
+  "scenario": {
+    "id": "flood-774",
+    "name": "Floodwatch",
+    "region": "Volta Basin, Ghana",
+    "objective": "Return usable radar imagery of at least 80% of the flood zone within 72 hours of deployment.",
+    "deadline": 4320,
+    "target": 80,
+    "tiles": 720,
+    "budget": 160,
+    "reserve": 20,
+    "seed": 774,
+    "developmentLimit": 50
+  },
+  "tiers": [
+    "Basic",
+    "Average",
+    "Best",
+    "Excellent"
+  ],
+  "components": [
+    {
+      "id": "bus",
+      "name": "Spacecraft bus",
+      "short": "Structure",
+      "category": "required",
+      "icon": "box",
+      "function": "The structural backbone. Provides seven subsystem mounts and protects the electronics.",
+      "mass": 70,
+      "cost": 12,
+      "watts": 10,
+      "dimensions": [
+        1.2,
+        1.1,
+        1.5
+      ],
+      "lead": 12,
+      "asset": "bus",
+      "parent": null,
+      "baseDraw": [
+        10,
+        9,
+        8,
+        7
+      ],
+      "benefit": "Larger bus envelope and lower housekeeping power."
+    },
+    {
+      "id": "power",
+      "name": "Electrical power",
+      "short": "Power / EPS",
+      "category": "required",
+      "icon": "bolt",
+      "function": "Solar arrays generate electricity in sunlight. The battery carries the spacecraft through eclipse.",
+      "mass": 24,
+      "cost": 12,
+      "watts": 5,
+      "dimensions": [
+        0.5,
+        0.4,
+        0.4
+      ],
+      "lead": 8,
+      "asset": "power",
+      "parent": "bus",
+      "capacity": [
+        70,
+        120,
+        180,
+        260
+      ],
+      "solar": [
+        240,
+        300,
+        360,
+        440
+      ]
+    },
+    {
+      "id": "adcs",
+      "name": "Attitude control",
+      "short": "Pointing / ADCS",
+      "category": "required",
+      "icon": "target",
+      "function": "Reaction wheels and attitude sensors keep the radar aligned with the flood zone.",
+      "mass": 18,
+      "cost": 8,
+      "watts": 12,
+      "dimensions": [
+        0.4,
+        0.3,
+        0.3
+      ],
+      "lead": 9,
+      "asset": "adcs",
+      "parent": "bus",
+      "baseDraw": [
+        12,
+        10,
+        8,
+        6
+      ],
+      "benefit": "More efficient attitude control reduces continuous power demand."
+    },
+    {
+      "id": "computer",
+      "name": "Flight computer",
+      "short": "Computer / C&DH",
+      "category": "required",
+      "icon": "chip",
+      "function": "Runs commands and buffers imagery until a ground station is visible.",
+      "mass": 12,
+      "cost": 10,
+      "watts": 14,
+      "dimensions": [
+        0.3,
+        0.3,
+        0.2
+      ],
+      "lead": 6,
+      "asset": "computer",
+      "parent": "bus",
+      "storage": [
+        12,
+        24,
+        48,
+        96
+      ]
+    },
+    {
+      "id": "comm",
+      "name": "Communications",
+      "short": "Downlink",
+      "category": "required",
+      "icon": "radio",
+      "function": "Returns stored imagery to Earth during ground contacts. Only delivered imagery earns science credit.",
+      "mass": 14,
+      "cost": 10,
+      "watts": 8,
+      "dimensions": [
+        0.4,
+        0.4,
+        0.5
+      ],
+      "lead": 8,
+      "asset": "comm",
+      "parent": "bus",
+      "downlink": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "thermal",
+      "name": "Thermal control",
+      "short": "Thermal",
+      "category": "required",
+      "icon": "sun",
+      "function": "Insulation and regulated heaters keep the bus operational in both sunlight and eclipse.",
+      "mass": 15,
+      "cost": 6,
+      "watts": 26,
+      "dimensions": [
+        0.3,
+        0.3,
+        0.2
+      ],
+      "lead": 5,
+      "asset": "thermal",
+      "parent": "bus",
+      "baseDraw": [
+        26,
+        22,
+        18,
+        14
+      ],
+      "benefit": "Improved insulation reduces continuous heater demand."
+    },
+    {
+      "id": "propulsion",
+      "name": "Manoeuvring system",
+      "short": "Propulsion",
+      "category": "required",
+      "icon": "rocket",
+      "function": "Includes a tank, thrusters and 12 kg of spacecraft propellant. Deployment consumes 2 kg.",
+      "mass": 22,
+      "cost": 7,
+      "watts": 5,
+      "dimensions": [
+        0.4,
+        0.4,
+        0.5
+      ],
+      "lead": 10,
+      "asset": "propulsion",
+      "parent": "bus",
+      "baseDraw": [
+        5,
+        4,
+        3,
+        2
+      ],
+      "benefit": "Lower standby power; the selected LEO route still uses 2 kg of propellant."
+    },
+    {
+      "id": "radar",
+      "name": "SAR instrument",
+      "short": "Science / SAR",
+      "category": "required",
+      "icon": "scan",
+      "function": "Synthetic aperture radar maps the flood zone through clouds and darkness. Higher tiers improve resolution but consume more power and storage.",
+      "mass": 38,
+      "cost": 18,
+      "watts": 40,
+      "dimensions": [
+        0.8,
+        0.3,
+        0.4
+      ],
+      "lead": 14,
+      "asset": "radar",
+      "parent": "bus",
+      "draw": [
+        40,
+        50,
+        60,
+        72
+      ],
+      "resolution": [
+        30,
+        20,
+        12,
+        8
+      ],
+      "dataPerTile": [
+        1,
+        1.3,
+        1.6,
+        2
+      ]
+    },
+    {
+      "id": "battery",
+      "name": "Auxiliary battery",
+      "short": "Extra battery",
+      "category": "optional",
+      "icon": "battery",
+      "function": "Adds stored energy without increasing solar generation. Requires an installed power system.",
+      "mass": 16,
+      "cost": 9,
+      "watts": 0,
+      "dimensions": [
+        0.3,
+        0.3,
+        0.3
+      ],
+      "lead": 5,
+      "asset": "battery",
+      "parent": "power",
+      "capacity": [
+        80,
+        120,
+        180,
+        240
+      ]
+    },
+    {
+      "id": "antenna",
+      "name": "High-gain antenna",
+      "short": "Antenna upgrade",
+      "category": "optional",
+      "icon": "radio",
+      "function": "Adds downlink capacity during ground contact. Requires communications hardware.",
+      "mass": 9,
+      "cost": 8,
+      "watts": 2,
+      "dimensions": [
+        0.4,
+        0.4,
+        0.3
+      ],
+      "lead": 6,
+      "asset": "antenna",
+      "parent": "comm",
+      "downlink": [
+        1,
+        1.5,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "compression",
+      "name": "Onboard compression",
+      "short": "Data processor",
+      "category": "optional",
+      "icon": "chip",
+      "function": "Lossless compression reduces the storage and transmission volume of each image. Requires the flight computer.",
+      "mass": 3,
+      "cost": 7,
+      "watts": 3,
+      "dimensions": [
+        0.2,
+        0.2,
+        0.1
+      ],
+      "lead": 4,
+      "asset": "compression",
+      "parent": "computer",
+      "ratio": [
+        0.7,
+        0.6,
+        0.5,
+        0.4
+      ]
+    }
+  ],
+  "orbits": [
+    {
+      "id": "leo500",
+      "name": "Low Earth \u00b7 500 km",
+      "tag": "Faster revisit",
+      "altitude": 500,
+      "period": 90,
+      "eclipse": [
+        60,
+        90
+      ],
+      "sunPass": [
+        30,
+        45
+      ],
+      "nightPass": [
+        75,
+        90
+      ],
+      "contacts": [
+        [
+          0,
+          12
+        ],
+        [
+          48,
+          55
+        ]
+      ],
+      "injection": "LEO",
+      "description": "48 revolutions in 72 h. A 30-minute eclipse and short ground contacts reward careful energy and data planning."
+    },
+    {
+      "id": "leo700",
+      "name": "Low Earth \u00b7 700 km",
+      "tag": "Longer contacts",
+      "altitude": 700,
+      "period": 100,
+      "eclipse": [
+        65,
+        100
+      ],
+      "sunPass": [
+        30,
+        45
+      ],
+      "nightPass": [
+        80,
+        95
+      ],
+      "contacts": [
+        [
+          0,
+          18
+        ],
+        [
+          50,
+          60
+        ]
+      ],
+      "injection": "LEO",
+      "description": "43 full revolutions. Longer downlink windows, a 35-minute eclipse and fewer target passes create a different trade-off."
+    }
+  ],
+  "rockets": [
+    {
+      "id": "falcon",
+      "name": "Falcon 9",
+      "operator": "SpaceX \u00b7 United States",
+      "configuration": "Demo rideshare \u00b7 LEO",
+      "capacity": 600,
+      "fairing": [
+        2.5,
+        2.5,
+        4
+      ],
+      "price": 32,
+      "injections": [
+        "LEO"
+      ],
+      "propellant": "Not modelled \u00b7 carrier service",
+      "color": "#d9e9f3"
+    },
+    {
+      "id": "ariane",
+      "name": "Ariane 6",
+      "operator": "Arianespace \u00b7 Europe",
+      "configuration": "Demo rideshare \u00b7 LEO",
+      "capacity": 750,
+      "fairing": [
+        3,
+        3,
+        4.5
+      ],
+      "price": 38,
+      "injections": [
+        "LEO"
+      ],
+      "propellant": "Not modelled \u00b7 carrier service",
+      "color": "#eff5fc"
+    },
+    {
+      "id": "h3",
+      "name": "H3",
+      "operator": "JAXA / MHI \u00b7 Japan",
+      "configuration": "Demo rideshare \u00b7 LEO",
+      "capacity": 500,
+      "fairing": [
+        2.5,
+        2.5,
+        3.5
+      ],
+      "price": 30,
+      "injections": [
+        "LEO"
+      ],
+      "propellant": "Not modelled \u00b7 carrier service",
+      "color": "#d4dfef"
+    },
+    {
+      "id": "lvm3",
+      "name": "LVM3",
+      "operator": "ISRO \u00b7 India",
+      "configuration": "Demo rideshare \u00b7 LEO",
+      "capacity": 450,
+      "fairing": [
+        2.3,
+        2.3,
+        3.2
+      ],
+      "price": 28,
+      "injections": [
+        "LEO"
+      ],
+      "propellant": "Not modelled \u00b7 carrier service",
+      "color": "#f7ede2"
+    }
+  ]
+}
