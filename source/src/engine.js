@@ -28,7 +28,7 @@ function preflight(design,career){
  const checks=[
  {name:'Required capabilities',ok:!missing.length,detail:missing.length?'Install '+missing.map(p=>p.name).join(', '):'All 8 subsystems installed'},
  {name:'Compatible attachments',ok:!badParents.length,detail:badParents.length?badParents.map(p=>p.name+' needs '+p.parent).join('; '):'7 bus mounts · 1 mount per upgrade parent'},
- {name:'Mission budget',ok:t.totalCost<=funding(career),detail:`${t.totalCost.toFixed(1)} / ${funding(career)} credits`},
+ {name:'Mission budget',ok:t.totalCost<=funding(career),detail:`$${t.totalCost.toFixed(1)} / $${funding(career)}`},
  {name:'Launch mass',ok:t.mass<=v.capacity,detail:`${t.mass.toFixed(1)} / ${v.capacity} kg`},
  {name:'Stowed fairing fit',ok:t.dimensions.every((x,i)=>x<=v.fairing[i]),detail:t.dimensions.map(x=>x.toFixed(2)).join(' × ')+' m in '+v.fairing.join(' × ')+' m'},
  {name:'Supported injection',ok:v.injections.includes(o.injection),detail:o.injection+' injection · deployment uses 2 kg spacecraft propellant'},

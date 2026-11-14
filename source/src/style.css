@@ -10,7 +10,26 @@
 @media(max-width:900px){.flight-copy{max-width:55%;width:370px}.flight-view{min-height:650px}.flight-panels{grid-template-columns:1fr}.flight-marker{transform:scale(.75) rotate(-20deg)}}
 @media(max-width:580px){.flight-title{align-items:start}.flight-title h2{font-size:20px}.flight-title .tag{display:none}.flight-view{height:760px;min-height:760px}.flight-top{left:22px;right:22px;font-size:8px;gap:20px}.flight-top>span:last-child{max-width:100px;text-align:right}.flight-copy{left:7%;top:14%;width:86%;max-width:86%}.flight-copy h1{font-size:35px}.flight-copy p{max-width:280px;font-size:13px}.flight-readings{gap:18px}.flight-readings strong{font-size:16px}.flight-marker{opacity:.6;margin-top:80px;transform:scale(.5) rotate(-20deg);transform-origin:left}.flight-bottom{padding:45px 7% 23px}.flight-controls{gap:10px}.flight-clock{width:100%;margin-bottom:6px}.flight-controls .btn{font-size:11px}.flight-rate{font-size:9px;gap:5px}.flight-rate select{min-width:100px}.flight-controls .ghost{padding:10px}.mars-panels{grid-template-columns:1fr}}
 
-.data-summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;margin:0 0 18px}.data-summary button{margin-left:auto;color:var(--cyan)}.geometry-panel{margin-top:18px}.geometry-readings{display:flex;gap:30px;flex-wrap:wrap;margin:18px 0}.geometry-readings label{display:block;font-size:10px;color:var(--muted);margin-bottom:8px}.geometry-readings strong{font:20px monospace;color:var(--cyan)}.data-command{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.8;padding:12px;background:#040812}.geometry-panel p{line-height:1.8;margin-top:10px}.data-table td{overflow-wrap:anywhere}#modal details{margin-top:16px}#modal select{max-width:100%}@media(max-width:600px){.geometry-readings{gap:14px}.data-summary .muted{max-width:100%;overflow-wrap:anywhere}.data-table{table-layout:fixed;width:100%}}
-
-.setup-steps{padding-left:20px}.setup-steps>li{margin:20px 0}.setup-steps label{display:block;margin:14px 0 7px;font-size:12px}.setup-fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}.setup-fields input,.setup-fields select,#nasa-contact-email,#nasa-command-text{width:100%;box-sizing:border-box}#nasa-command-text{background:#040812;color:#cde7f5;border:1px solid var(--line);border-radius:6px;padding:12px;font:12px/1.8 monospace;resize:vertical}.setup-steps p{line-height:1.8;margin-top:10px}.setup-steps a{color:var(--cyan)}@media(max-width:600px){.setup-fields{grid-template-columns:1fr}}
-.nasa-panel{margin-bottom:24px}.nasa-panel p{line-height:1.7;margin-top:10px}.nasa-panel a{color:var(--cyan)}.nasa-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:18px 0}.nasa-grid>div{border:1px solid var(--line);border-radius:8px;padding:14px}@media(max-width:700px){.nasa-grid{grid-template-columns:1fr}}
+.model-launcher{position:absolute;left:16px;bottom:40px;z-index:2}
+.model-launcher .btn{background:#0b162c;color:#ecf3fc}
+#model-dialog{width:min(900px,calc(100vw - 24px));max-width:none;max-height:calc(100dvh - 24px);overflow:auto}
+#model-dialog .dialog-head form{margin:0}
+.model-body{padding:0 18px 16px}
+.model-description,.model-info{color:var(--muted);line-height:1.5;margin:12px 0}
+.model-stage{height:min(54dvh,510px);min-height:240px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:radial-gradient(at 52% 40%,#243653,#050b16 80%)}
+.model-stage canvas{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
+.model-stage canvas:active{cursor:grabbing}
+.model-controls{display:flex;flex-wrap:wrap;gap:8px}
+.model-stage[hidden],.model-controls[hidden]{display:none}
+.model-controls button[aria-pressed="true"]{color:var(--cyan);border-color:var(--cyan)}
+/* v0.2.3: persistent back navigation and interactive Mars stage. */
+.header .global-back{flex-shrink:0;margin-right:14px;gap:6px}.header .brand{margin-right:auto}
+.flight-view.mars{background:linear-gradient(#a77954,#d5ae83 62%,#986440)}
+#mars-canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab;outline-offset:-4px}
+#mars-canvas:active{cursor:grabbing}.mars .flight-top,.mars .flight-copy{pointer-events:none}.mars .flight-top{z-index:2}
+.mars .flight-copy{top:15%;max-width:32%;padding:16px;border-radius:10px;background:#21160e70;backdrop-filter:blur(3px)}
+.mars .flight-copy h1{font-size:30px;margin:10px 0 18px}.mars .flight-copy p{font-size:12px;margin:14px 0}
+.mars-camera-tools{position:absolute;z-index:3;right:22px;top:70px;display:flex;gap:6px;flex-wrap:wrap;max-width:290px;justify-content:flex-end}
+.mars-camera-tools .btn{background:#21160e99;border-color:#dfc6a755;color:#fff}.mars-camera-tools span{width:100%;font-size:11px;text-align:right;text-shadow:0 1px 5px #000}
+.flight-marker[hidden]{display:none}.mars-scene-error{position:absolute;top:50%;left:45%;max-width:45%;padding:20px;background:#21160ed9}
+@media(max-width:580px){.header{flex-wrap:wrap}.header .global-back{padding:8px;margin-right:8px}.header .brand-sub{display:none}.mars .flight-copy{top:105px;left:14px;max-width:62%;padding:10px}.mars .flight-copy h1{font-size:21px}.mars .flight-copy p{display:none}.mars .flight-readings{gap:9px}.mars .flight-readings strong{font-size:13px}.mars-camera-tools{top:53px;right:14px;max-width:100%}.mars-camera-tools span{display:none}}

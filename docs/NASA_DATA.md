@@ -4,7 +4,7 @@ Updated 14 November 2026. This supersedes the earlier UI email setup and CLI-onl
 
 ## Supported flow and modes
 
-A player saves their NASA gateway key as **API.txt** beside `launcher.py`. The Play scripts run the Python launcher. There is no email entry form, browser key field, account, provider URL proxy or public server. API.txt presence opts a fresh installation into online report updates. Missing key or `--offline` keeps provider access off. A previously selected Offline setting is retained in the local cache directory; Enable NASA updates switches it on again.
+A player saves their NASA gateway key as **API.txt** beside `launcher.py`. Run `python3 launcher.py` to open the NASA reports edition. The Play scripts open the standalone game. There is no email entry form, browser key field, account, provider URL proxy or public server. API.txt presence opts a fresh installation into online report updates. Missing key or `--offline` keeps provider access off. A previously selected Offline setting is retained in the local cache directory; Enable NASA updates switches it on again.
 
 The launcher binds only to `127.0.0.1` and serves the separate `online.html`. All upstream access is in Python. A fixed status route and bounded mode-control route are the only API endpoints. Host validation rejects DNS rebinding; mutations require the exact local Origin and JSON body. API.txt, source files and arbitrary paths are not served. HTML permits only same-origin connections. The standalone `index.html` retains `connect-src 'none'`, contains no network primitives, and needs neither Python nor connectivity.
 
