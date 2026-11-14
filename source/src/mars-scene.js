@@ -20,8 +20,34 @@ const OrbitalMars = (() => {
     roverGeometry.computeVertexNormals();
     return roverGeometry.clone();
   }
+  function vehicle(design) {
+    const cfg=design||MarsMission.starter(),stats=MarsMission.stats(cfg),group=new THREE.Group();
+    const body=new THREE.Mesh(geometry(),new THREE.MeshStandardMaterial({color:stats.type.color,metalness:.3,roughness:.65,side:THREE.DoubleSide}));group.add(body);
+    const accessory=(id,shape,color,x,y,z)=>{if(cfg.parts[id]===undefined)return;const mesh=new THREE.Mesh(shape,new THREE.MeshStandardMaterial({color,metalness:.35,roughness:.55}));mesh.position.set(x,y,z);mesh.userData.part=id;mesh.scale.multiplyScalar(1+.1*cfg.parts[id]);group.add(mesh);};
+    accessory('power',new THREE.BoxGeometry(2.5,.08,1.4),0x193d73,-.5,1.9,0);
+    accessory('battery',new THREE.BoxGeometry(.65,.5,.8),0x68768a,-1,1.1,0);
+    accessory('drill',new THREE.CylinderGeometry(.12,.08,1.1,12),0xc78d48,1.8,.9,.9);
+    accessory('storage',new THREE.BoxGeometry(.7,.4,.7),0x5091aa,-1.2,1.8,.8);
+    accessory('antenna',new THREE.SphereGeometry(.55,16,8,0,Math.PI*2,0,Math.PI/2),0xf1ddb0,-1.2,2.5,-.6);
+    if(cfg.parts.traction!==undefined){accessory('traction',new THREE.BoxGeometry(3.1,.1,.15),0xb9a46c,0,.55,1.2);accessory('traction',new THREE.BoxGeometry(3.1,.1,.15),0xb9a46c,0,.55,-1.2);}
+    group.scale.setScalar(stats.type.scale);return group;
+  }
+  function preview(canvas,design){
+    if(!canvas)return;let renderer,frame,observer;const events=new AbortController(),scene=new THREE.Scene();
+    try{const ctx=canvas.getContext('webgl2',{alpha:true,antialias:true})||canvas.getContext('webgl',{alpha:true,antialias:true});renderer=ctx?new THREE.WebGLRenderer({canvas,context:ctx,alpha:true,antialias:true}):modelCanvasRenderer(canvas);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+      scene.add(new THREE.HemisphereLight(0xe2edff,0x3a3444,1.3));const light=new THREE.DirectionalLight(0xffffff,1.2);light.position.set(6,8,6);scene.add(light);
+      const rover=vehicle(design);scene.add(rover);const camera=new THREE.PerspectiveCamera(40,1,.1,100);let yaw=.7,pitch=.35,distance=11,drag=null;
+      const size=()=>{const r=canvas.getBoundingClientRect();renderer.setSize(r.width,r.height);camera.aspect=r.width/Math.max(1,r.height);camera.updateProjectionMatrix();};observer=new ResizeObserver(size);observer.observe(canvas);size();
+      canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);},{signal:events.signal});
+      canvas.addEventListener('pointermove',e=>{if(!drag)return;yaw-=(e.clientX-drag.x)*.007;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-drag.y)*.005,.05,1.3);drag={x:e.clientX,y:e.clientY};},{signal:events.signal});
+      for(const event of ['pointerup','pointercancel'])canvas.addEventListener(event,()=>drag=null,{signal:events.signal});
+      canvas.addEventListener('wheel',e=>{e.preventDefault();distance=THREE.MathUtils.clamp(distance*Math.exp(e.deltaY*.001),6,22);},{passive:false,signal:events.signal});
+      function draw(){camera.position.set(Math.sin(yaw)*distance*Math.cos(pitch),1+Math.sin(pitch)*distance,Math.cos(yaw)*distance*Math.cos(pitch));camera.lookAt(0,1.2,0);renderer.render(scene,camera);frame=requestAnimationFrame(draw);}draw();
+    }catch(e){console.warn('Rover preview unavailable',e);}
+    stop=()=>{cancelAnimationFrame(frame);observer?.disconnect();events.abort();scene.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});renderer?.dispose?.();renderer?.forceContextLoss?.();};
+  }
   function detach(){stop?.();stop=null;}
-  function attach(canvas, run, landing) {
+  function attach(canvas, run, landing, controls={}) {
     if(!canvas)return;
     let renderer, frame, observer;
     const listeners = new AbortController();
@@ -60,8 +86,18 @@ const OrbitalMars = (() => {
         const x=Math.sin(i*127.1)*180,z=700+Math.cos(i*311.7)*160,scale=.25+(i%7)*.13;
         const rock=new THREE.Mesh(rockGeometry,rockMaterial);rock.position.set(x,height(x,z)+scale*.25,z);rock.scale.set(scale,scale*.7,scale*.9);rock.rotation.set(i,i*.7,i*.3);scene.add(rock);
       }
-      const rover=new THREE.Mesh(geometry(),new THREE.MeshStandardMaterial({color:0xc3b49c,metalness:.3,roughness:.65,side:THREE.DoubleSide}));
+      const rover=vehicle(run.design);
       scene.add(rover);
+      const markers=run.manual?MarsMission.waypoints.map((point,i)=>{const group=new THREE.Group();group.position.set(point.x,height(point.x,point.z)+.4,point.z);const material=new THREE.MeshBasicMaterial({color:0x49d9ee});const ring=new THREE.Mesh(new THREE.TorusGeometry(2.5,.16,6,20),material);ring.rotation.x=Math.PI/2;group.add(ring);const pole=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,4,6),material);pole.position.y=2;group.add(pole);const flag=new THREE.Mesh(new THREE.BoxGeometry(1.3,.65,.08),material);flag.position.set(.6,3.5,0);group.add(flag);scene.add(group);return group;}):[];
+      const held={};let lastHud=0,lastSave=0;
+      const clearKeys=()=>{for(const k in held)delete held[k];};
+      on(canvas,'blur',clearKeys);on(window,'blur',clearKeys);on(document,'visibilitychange',clearKeys);
+      on(canvas,'keydown',e=>{
+        if(!run.manual)return;
+        if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)){e.preventDefault();held[e.code]=true;}
+        if(!e.repeat&&['KeyX','KeyC','KeyT'].includes(e.code)){e.preventDefault();controls.command?.({KeyX:'sample',KeyC:'core',KeyT:'relay'}[e.code]);}
+      });
+      on(canvas,'keyup',e=>{delete held[e.code];});
       const target=new THREE.Vector3(),camera=new THREE.PerspectiveCamera(50,1,.15,6000);
       let shown=run.t,previous=performance.now(),drag=null;
       const size=()=>{const rect=canvas.getBoundingClientRect();renderer.setSize(rect.width,rect.height);camera.aspect=rect.width/Math.max(1,rect.height);camera.updateProjectionMatrix();};
@@ -73,7 +109,7 @@ const OrbitalMars = (() => {
       on(canvas,'pointermove',e=>{if(!drag)return;view.yaw-=(e.clientX-drag.x)*.007;view.pitch+=(e.clientY-drag.y)*.005;drag={x:e.clientX,y:e.clientY};constrain();});
       on(canvas,'pointerup',()=>drag=null);on(canvas,'pointercancel',()=>drag=null);
       on(canvas,'wheel',e=>{e.preventDefault();view.distance*=Math.exp(e.deltaY*.001);constrain();},{passive:false});
-      on(canvas,'keydown',e=>{const keys={ArrowLeft:'left',ArrowRight:'right','+':'in','=':'in','-':'out',r:'reset',R:'reset'};if(keys[e.key]){e.preventDefault();action(keys[e.key]);}if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();view.pitch+=(e.key==='ArrowUp'?.08:-.08);constrain();}});
+      on(canvas,'keydown',e=>{const keys={...(run.manual?{q:'left',Q:'left',e:'right',E:'right'}:{ArrowLeft:'left',ArrowRight:'right'}),'+':'in','=':'in','-':'out',r:'reset',R:'reset'};if(keys[e.key]){e.preventDefault();action(keys[e.key]);}if(!run.manual&&(e.key==='ArrowUp'||e.key==='ArrowDown')){e.preventDefault();view.pitch+=(e.key==='ArrowUp'?.08:-.08);constrain();}});
       function draw(now) {
         const dt=Math.min((now-previous)/1000,.1);previous=now;
         if(!document.hidden) {
@@ -82,7 +118,15 @@ const OrbitalMars = (() => {
           const fraction=Math.min(1,shown/landing);
           // Deliberately compressed altitude: keeps the rover and mountain range readable.
           const altitude=120*Math.pow(1-fraction,1.4);
-          rover.position.set(0,ground+altitude+.12,700);
+          if(run.manual&&controls.isDriving?.()&&document.activeElement===canvas){
+            MarsMission.move(run,{forward:(held.KeyW||held.ArrowUp?1:0)-(held.KeyS||held.ArrowDown?1:0),turn:(held.KeyD||held.ArrowRight?1:0)-(held.KeyA||held.ArrowLeft?1:0),brake:held.Space},dt,height);
+          }else clearKeys();
+          const x=run.position?.x??0,z=run.position?.z??700;
+          const contact=Math.max(height(x,z),height(x-2,z-1),height(x+2,z+1));
+          rover.position.set(x,contact+altitude+.25,z);rover.rotation.y=-(run.position?.heading??0);
+          markers.forEach((m,i)=>{m.children.forEach(o=>o.material.color.setHex(i<run.visited?0x83a369:i===run.visited?0x49e5ff:0xba8f5b));});
+          if(run.manual&&now-lastHud>200){controls.onUpdate?.();lastHud=now;}
+          if(run.manual&&now-lastSave>1000){save();lastSave=now;}
           target.copy(rover.position).add(new THREE.Vector3(0,1.3,0));
           camera.position.set(target.x+Math.sin(view.yaw)*view.distance*Math.cos(view.pitch),target.y+Math.sin(view.pitch)*view.distance,target.z+Math.cos(view.yaw)*view.distance*Math.cos(view.pitch));
           camera.position.y=Math.max(camera.position.y,height(camera.position.x,camera.position.z)+2);
@@ -98,5 +142,5 @@ const OrbitalMars = (() => {
     }
     stop=()=>{cancelAnimationFrame(frame);listeners.abort();observer?.disconnect();scene.traverse(o=>{o.geometry?.dispose();if(o.material)o.material.dispose();});renderer?.dispose?.();renderer?.forceContextLoss?.();};
   }
-  return {attach,detach};
+  return {attach,preview,detach};
 })();

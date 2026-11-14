@@ -1,0 +1,8 @@
+/* Reuse the bundled physical models in primary game views. */
+const OrbitalInline=(()=>{
+ let stops=[];
+ function html(kind,flight=false){const rocket=kind==='rocket';return `<div class="inline-model ${flight?'in-flight':''}" data-inline-model="${kind}"><div class="inline-model-stage"><canvas tabindex="0" aria-label="Interactive ${rocket?'rocket':'Hubble satellite'} model"></canvas></div><div class="model-controls"><button class="btn compact" id="bExplode" aria-pressed="false">Exploded view</button><button class="btn compact" id="${rocket?'bLaunch':'bEarth'}" aria-pressed="${!rocket}">${rocket?'Engine preview':'Earth backdrop'}</button><button class="btn compact" id="bSpin" aria-pressed="true">Auto-rotate</button></div><p id="info" class="model-info">Drag to rotate · scroll to zoom · select a part</p></div>`;}
+ function detach(){for(const stop of stops)stop();stops=[];}
+ function attach(){document.querySelectorAll('[data-inline-model]').forEach(view=>{let canvas=view.querySelector('canvas'),renderer,cleanup;try{const options={alpha:true,antialias:true},context=canvas.getContext('webgl2',options)||canvas.getContext('webgl',options);if(context){try{renderer=new THREE.WebGLRenderer({canvas,context,...options});}catch{const replacement=canvas.cloneNode();canvas.replaceWith(replacement);canvas=replacement;}}renderer??=modelCanvasRenderer(canvas);cleanup=(view.dataset.inlineModel==='rocket'?rocketScene:hubbleScene)(view,renderer,canvas);}catch(e){view.querySelector('#info').textContent='3D rendering unavailable in this browser.';console.warn(e);}stops.push(()=>{cleanup?.();renderer?.dispose?.();renderer?.forceContextLoss?.();});});}
+ return {html,attach,detach};
+})();

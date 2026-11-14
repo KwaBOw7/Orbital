@@ -107,5 +107,5 @@ if(auto&&!drag)th+=dt*.25;
 for(var n in parts){var p=parts[n],g=expl?p.userData.t:zero;p.position.lerp(g,Math.min(1,dt*5))}
 place();R.render(S,cam);frame=requestAnimationFrame(loop)}
 loop();
-return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+return () => { cancelAnimationFrame(frame); observer.disconnect();const geometries=new Set(),materials=new Set();S.traverse(o=>{if(o.geometry)geometries.add(o.geometry);if(o.material)materials.add(o.material);});geometries.forEach(g=>g.dispose());materials.forEach(m=>{m.map?.dispose();m.dispose();}); };
 }

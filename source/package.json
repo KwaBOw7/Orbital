@@ -1,6 +1,6 @@
 {
   "name": "orbital-mission-design",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "private": true,
   "description": "Offline Space Mission Design Game",
   "scripts": {

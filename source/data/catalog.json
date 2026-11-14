@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "version": "0.2.3",
+  "version": "0.3.0",
   "provenance": "All numerical hardware, launch, orbit and science values in this demo are illustrative game settings, not flight specifications. Vehicle names identify the inspiration only.",
   "scenario": {
     "id": "flood-774",

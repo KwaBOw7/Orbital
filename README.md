@@ -94,3 +94,21 @@ Mars timings, surface tasks and interpolated altitude/velocity are educational g
 Budgets and prices use `$` (illustrative game amounts). Use **Back** at the upper left to return to the preceding menu; an active Earth flight is paused and can be resumed from mission selection.
 
 Open **Fly Mars practice** for the supplied mountain terrain and rover model. Press **Play** for a slow descent at real-time speed, select a faster rate, or use **Skip to landing**. Drag the view or use arrow keys to orbit, scroll / + / − to zoom, and R or **Reset view** to reset. These visuals remain illustrative, with compressed scene altitude. Terrain detail is reduced automatically when WebGL is unavailable. Everything needed for this scene is embedded in the offline HTML.
+
+## v0.3.0 — build and drive a Mars rover
+
+This replaces the earlier one-click Mars practice entry with **Configure Mars mission**:
+
+1. Choose **Scout**, **Surveyor** or **Pathfinder**. They share the supplied rover mesh with different size, color and gameplay characteristics.
+2. Install the eight required subsystems. Select Basic, Average, Best or Excellent tiers. The Advanced tab offers a core drill, extra science storage, a terrain mobility kit and a high-gain antenna. Add-ons appear as simplified mounted geometry on the supplied rover model.
+3. Choose Courier, Voyager or Atlas Heavy, three fictional Mars launch services using the existing rocket model. Payload and price matter.
+4. Choose direct entry, elliptical Mars parking orbit or polar Mars parking orbit. Insertion mass, cost and relay contacts change. Fix every failed preflight check, then launch.
+5. Flight begins at Mars atmospheric entry; launch and interplanetary cruise are summarized. Play the descent or skip to landing. Click **Drive · WASD** to enable real-time surface control and focus the canvas.
+
+Keyboard: **W/S** forward/reverse, **A/D** steer (arrows also work), **Space** brake, **X** analyze, **C** drill, **T** transmit. **Q/E** orbit the camera; drag also orbits, scroll or +/- zooms, and R resets the view. Driving requires a focused canvas and running playback. Pause, leaving the view, losing focus or hiding the tab stops movement. Science tasks pause driving; use Play or Next event to complete them.
+
+Drive to the cyan markers in order. Enter the 6 m arrival radius, analyze both rock sites and relay the results during a contact window. A drill plus extra storage permits bonus cores. The mission has a 3-hour simulated surface/entry deadline, rechargeable battery, slope limits and a bounded survey area. Rocks are decorative; full wheel suspension and rock collision physics are not implemented.
+
+Your draft design and launched Mars session, including position, battery, samples, active task and pinned data pack, are included in local saves and export/import. The launched design stays fixed when you edit the next mission. Older Earth-only saves still load.
+
+The supplied Hubble model now appears directly in Earth assembly and operations, and the supplied rocket model appears directly in both launch-selection experiences. Hubble is a visual stand-in for the Earth observation mission; Earth hardware values and radar simulation remain those of the selected game design. Existing science/launch model shapes are illustrative, not hardware-accurate visualizations of every tier.

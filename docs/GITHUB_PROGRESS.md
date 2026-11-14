@@ -21,3 +21,15 @@ The checked items are local implementation status, not GitHub issue state.
 - [x] Dispose render loops, event listeners and graphics resources when leaving the scene. Reduced-detail Canvas renderer for browsers without WebGL.
 - [x] Validation: 41 Node tests and 26 Python tests; browser checks of currency, Back, playback/pause, camera controls and touchdown.
 - [ ] Publish this release to the project's GitHub repository (no repository connection configured here).
+
+## v0.3.0 — configure and drive Mars missions (2026-11-14)
+
+- [x] Rover type → required / advanced parts → rocket → arrival orbit → mission control.
+- [x] Three chassis profiles, four component tiers and four optional advanced attachments.
+- [x] Budget, payload and landing-mass checks; configuration changes affect mission performance.
+- [x] Keyboard surface driving with focus/pause handling, battery use, slope and boundary checks, ordered sites, science tasks and relay contacts.
+- [x] Persist draft configuration and launched state with validation and pinned NASA data context.
+- [x] Reuse rover, Hubble and rocket models in the main game views, with Canvas fallback and resource cleanup.
+- [x] 56 Node tests and 26 Python tests pass, including the actual terrain traversal and scene event-handler lifecycle.
+- [ ] Visual browser QA for v0.3.0: preview access was blocked by browser policy; earlier v0.2.3 visual checks do not validate this release.
+- [ ] Push / tag / release on the project's GitHub repository. No repository connection is configured in this workspace.

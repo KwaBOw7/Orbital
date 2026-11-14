@@ -57,3 +57,13 @@ The proposed 60 fps at 1080p and under-500 MB total process targets have **not**
 28 automated tests passed on 14 November 2026. Added full-mission event-stepping equivalence, dashboard rendering, the complete ordered Mars objective path, deadline gating and finite descent telemetry. Browser walkthrough verified the Mars mission through science delivery, Earth launch-window advancement, the post-launch dashboard and selection of 240 simulated minutes per second. Desktop visual inspection covered the Mars dashboard. Mobile layout rules exist but a mobile browser was not exercised.
 
 The v0.2.0 standalone HTML is approximately 483 KB including generated background images. This supersedes the v0.1.0 size above. The optional NASA anchor is a user-initiated external navigation; no external scripts, runtime assets or network calls are required for gameplay. The browser reference itself did not render its WebGL scene, so visual matching uses the supplied screenshot.
+
+## v0.3.0 validation — 2026-11-14
+
+This section supersedes earlier feature, asset-size and renderer summaries for the current release. The game now bundles Three.js, physical model scene builders, the rover STL and offline Mars terrain in each HTML build.
+
+56 Node tests and 26 Python tests pass. New tests cover each required Mars subsystem, upgrades and preflight failures, immutable launched configuration, movement gating / braking / slopes / survey boundary / energy, ordered science tasks, optional cores, contact schedules, save restoration and malformed state rejection. A numerical route traverses all three sites using the supplied terrain-height function. Scene tests run with Three.js geometry and a stub renderer to exercise actual keyboard handlers, pause and blur cleanup, repeated mounting, finite geometry and optional attachments. These are code-level tests, not visual or GPU-rendering tests.
+
+Browser visual verification for v0.3.0 could not be completed: browser policy blocked access to the preview. No alternate browser surface was used. Check the setup flow, model visibility, keyboard focus, camera controls and save/reload in the user's browser. Prior release screenshots are not verification of the new screens. Mobile layout and device-specific GPU performance remain unverified.
+
+Rover graphics reuse one supplied mesh for all three chassis variants. Add-ons are simplified geometry, and only some installed subsystems have separate visible attachments. Terrain and physics are educational approximations: no wheel suspension, individual wheel animation, rock collisions or flight-dynamics reconstruction. Configured Mars missions are separate practice runs and do not modify Earth career scores.

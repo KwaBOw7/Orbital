@@ -102,5 +102,5 @@ lift=Math.min(lift+dt*.4,.35);rocket.position.x=Math.sin(t*60)*.01*lift;rocket.p
 else{rocket.position.x=0;rocket.position.z=0}
 place();R.render(S,cam);frame=requestAnimationFrame(loop)}
 loop();
-return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+return () => { cancelAnimationFrame(frame); observer.disconnect();const geometries=new Set(),materials=new Set();S.traverse(o=>{if(o.geometry)geometries.add(o.geometry);if(o.material)materials.add(o.material);});geometries.forEach(g=>g.dispose());materials.forEach(m=>{m.map?.dispose();m.dispose();}); };
 }
