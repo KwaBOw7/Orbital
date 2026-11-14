@@ -1,6 +1,11 @@
 import fs from 'node:fs';
-import path from 'node:path';
+import { createRequire } from 'node:module';
+const require=createRequire(import.meta.url);
 const data=JSON.parse(fs.readFileSync('data/catalog.json','utf8'));
+const starterPath='data/packs/starter.json';
+const starter=fs.existsSync(starterPath)?JSON.parse(fs.readFileSync(starterPath,'utf8')):null;
+if(starter)require('./src/data-packs.js').validate(starter);
 let html=fs.readFileSync('src/shell.html','utf8');
-for(const [key,value] of Object.entries({STYLE:fs.readFileSync('src/style.css','utf8'),DATA:'const ORBITAL_DATA = '+JSON.stringify(data)+';',ENGINE:fs.readFileSync('src/engine.js','utf8'),RENDERER:fs.readFileSync('src/renderer.js','utf8'),APP:fs.readFileSync('src/app.js','utf8')}))html=html.replace('/*'+key+'*/',()=>value);
-fs.mkdirSync('dist',{recursive:true});fs.writeFileSync('dist/index.html',html);console.log('Built self-contained offline game: dist/index.html ('+Buffer.byteLength(html)+' bytes)');
+for(const [key,value] of Object.entries({STYLE:fs.readFileSync('src/style.css','utf8'),DATA:'const ORBITAL_DATA = '+JSON.stringify(data)+'; const ORBITAL_STARTER = '+JSON.stringify(starter).replaceAll('<','\\u003c')+';',PACKS:fs.readFileSync('src/data-packs.js','utf8'),DATA_UI:fs.readFileSync('src/data-ui.js','utf8'),ENGINE:fs.readFileSync('src/engine.js','utf8'),RENDERER:fs.readFileSync('src/renderer.js','utf8'),FLIGHT:fs.readFileSync('src/flight.js','utf8'),APP:fs.readFileSync('src/app.js','utf8')}))html=html.replace('/*'+key+'*/',()=>value);
+html=html.replace('/*FLIGHT_IMAGES*/',()=>':root{'+['earth','mars'].map(name=>'--'+name+'-scene:url(data:image/webp;base64,'+fs.readFileSync('assets/'+name+'.webp').toString('base64')+');').join('')+'}');
+fs.mkdirSync('dist',{recursive:true});fs.writeFileSync('dist/index.html',html.replace('/*ONLINE*/',''));fs.writeFileSync('dist/online.html',html.replace("connect-src 'none'","connect-src 'self'").replace('/*ONLINE*/',()=>'<script>'+fs.readFileSync('src/online.js','utf8')+'</script>'));console.log('Built self-contained offline game: dist/index.html ('+Buffer.byteLength(html)+' bytes)');

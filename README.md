@@ -1,74 +1,65 @@
-# ORBITAL — Space Mission Design Game
+# ORBITAL — mission-design game and NASA data launcher
 
-Version 0.1.0 is a playable offline Earth-observation MVP based on the supplied Space Mission Design Game report. Assemble a satellite, select a carrier, clear preflight, operate a 72-hour radar mapping mission and revise the design from the results.
+ORBITAL 0.2.0 provides a playable Earth-observation mission and simplified Mars practice. The optional Python launcher now reads **API.txt** beside the app and retrieves NASA DONKI space-weather reports. The in-app contact-email form has been removed.
 
-## Play
+## Start with NASA data
 
-Open `index.html` from the release folder in your desktop browser. You can also use `Play-Linux.sh`, `Play-Windows.cmd` or `Play-macOS.command`. No server, internet connection, account, package installation or Python is needed. Keep the file in a stable folder so the browser can retain its local save. Use **Export save** before moving files, switching browsers or clearing browser data.
+1. Extract the complete ZIP. Install Python 3 if it is not already available.
+2. Get your own NASA API key from https://api.nasa.gov/.
+3. Create **API.txt** beside `launcher.py` and the Play scripts. Paste only the key on one line. You can rename `API.txt.example` to `API.txt` and replace its placeholder.
+4. Run `Play-Linux.sh`, `Play-macOS.command` or `Play-Windows.cmd`. Alternatively run `python3 launcher.py` (Windows: `py -3 launcher.py`). Keep that process running while playing; Ctrl+C stops it.
 
-This release runs as a local browser application, not a native desktop executable. An existing modern desktop browser is the only player runtime dependency. Chrome/Chromium was exercised during development. Firefox, Safari, Windows and macOS launchers have not been exercised on their native platforms. Local-file browser storage behavior can differ; save export/import is the portable fallback.
+The launcher opens the game at `http://127.0.0.1:8765`. On a fresh setup, placing API.txt beside the app opts in to NASA updates. Without a key it starts offline. A previous Offline choice is remembered; use **Enable NASA updates** to re-enable it. The reports panel also provides manual Refresh and Offline controls.
 
-## First flight
+The private key stays in Python and is never sent to the browser, included in saves or shipped in the release ZIP. Do not share API.txt. There is no email field or ORBITAL account. NASA's own key-registration process is separate.
 
-1. Choose **Configure mission**. Start with **Balanced** (default).
-2. Inspect components. **Required** contains eight subsystems; **Upgrades** adds a battery, antenna or compression processor. Select a part, choose its tier and inspect cost, mass and other values. Drag the model to rotate; use the view controls to explode, change zoom or toggle wireframe.
-3. Choose a 500 km or 700 km operating orbit. Select the planned imaging schedule. Day and night opportunities cover the same area: repeat imaging never creates extra unique coverage.
-4. Review preflight. The fixed demonstration seed starts with a 22 m/s crosswind, above the 18 m/s game limit. Choose **Next window** for a six-hour delay. The science clock starts after deployment, so that delay does not shorten the 72-hour science period.
-5. Launch. Time begins paused. Use **Resume**, **+ 1 orbit**, or **Complete mission**. Change imaging and downlink policy during flight if needed. Spacebar toggles pause when keyboard focus is outside a control.
-6. Review the report. Blue coverage means unique usable imagery delivered to Earth. Data still onboard earns no science credit. Choose **Revise design** or **Replay same conditions**.
+## What the data does
 
-## Three starter designs
+The launcher retrieves the latest available solar flares, geomagnetic storms and coronal mass ejections for a bounded seven-day UTC query. It validates and caches the results, checks every 15 real-world minutes, and displays event times and the last successful retrieval. A live request was successfully verified on 14 November 2026. Provider publication latency varies: these are research reports, **not real-time spacecraft telemetry** or an operational safety forecast.
 
-| Starter | Plan | Battery | Expected returned coverage | Result |
-| --- | --- | --- | --- | --- |
-| Balanced | Eclipse scan | 120 Wh | 97.9167% | Pass |
-| Lean | Sunlit target passes | 70 Wh | 99.8611% | Pass |
-| Eclipse lesson | Eclipse scan | 70 Wh | 65.2778% | Objective missed |
+Reports add mission context only. Wind, hardware tiers, engineering values, flood coverage, Mars descent/relay windows, objectives and score remain game settings. Accelerating or replaying a mission never increases provider polling or changes its physics. No reports in a date range does not establish safe conditions.
 
-These results use the default 500 km profile, continuous scheduled downlink, Basic radar, Average computer and Average communications. All include successful launch and deployment. The last pass may leave unsent data at the deadline.
+Cached reports survive a launcher restart and connection failure. Offline stops further updates; an already-running network operation may take up to its timeout to stop. Failed or partial refreshes preserve the previous complete report cache. Default storage: `~/.local/share/orbital/nasa`. Credentials are not cached there. API key errors are shown without logging credential-bearing URLs.
 
-The lesson starts each eclipse with 70 Wh, draws 120 W while scanning and hits the 20 Wh reserve after 25 minutes. Imaging is shed at that instant; the 80 W essential load continues, so energy exits the 30-minute eclipse at 13.3333 Wh. With sunlit imaging, the eclipse only draws 80 W and exits at 30 Wh.
+## Fully offline play
 
-## Local profiles and co-op
+Open **index.html** directly to play without Python, a server, credentials or network requests. It remains self-contained with `connect-src 'none'`. The launcher uses a separate `online.html` artifact with same-origin connections only.
 
-Guest mode plays practice missions. A local commander name enables career mode. One career is stored per browser/file location; renaming preserves it. Export separate saves to manage multiple careers. Shared-screen co-op assigns up to four named roles. Each assigned role must approve the launch; design, plan, orbit, rocket and window changes clear approvals. This is local shared-screen cooperation, not online multiplayer.
+You can also use `python3 launcher.py --offline` to display stored reports with no NASA requests. Local saves for `file://` and the launcher address are different browser origins: use **Export save** / **Import save** when switching between them. Export saves before clearing browser storage or moving the app.
 
-Autosave preserves the design, profile, paused mission and command history. Reopening the page reconstructs the active mission deterministically, without counting another launch. An interrupted replay retains its pending commands. Imported saves are validated before use and replace the session only after the player confirms.
+## First Earth flight
 
-Career awards 20 launch points, 20 deployment points, and up to 60 points proportional to the 80% coverage objective. Only improvement over the scenario's previous best is credited. At 100 carried Success, Trust increases by `10 + 5 × overflow`, then Success resets to zero. `80 + 25` gives `35 Trust`. Every career launch is an attempt; an objective miss or early termination is one failure. Blocked checks and weather holds count zero attempts. Practice never changes career counters.
+1. Choose Configure mission. Balanced is the default starter.
+2. Inspect the eight required subsystems and optional upgrades. Tiers trade mass, cost, power and capacity. Orbit choices use authored schedules, not propagated ephemerides.
+3. Review preflight. The initial demonstration crosswind blocks launch; **Fast-forward to launch window** advances six simulated hours instantly.
+4. Launch, then use Play, 1/10/60/240 simulated minutes per second, Next event or Run to mission end.
+5. Return at least 80% unique usable target coverage within 72 simulated hours. Undelivered imagery earns no science credit. Inspect the report, revise or replay.
 
-## Engineering model and limits
+Balanced returns approximately 97.9167%; Lean approximately 99.8611%; Eclipse lesson approximately 65.2778%, under the default 500 km setup. The last demonstrates a 70 Wh battery reaching the 20 Wh reserve after 25 minutes at 120 W. These are illustrative game values.
 
-All numeric catalogue values, carrier allocations, prices, weather, orbital schedules and science parameters are explicitly **game settings**. These are not validated SpaceX, Arianespace, JAXA, ISRO or NASA performance data. No real flood observations are included. See `docs/DATA_PROVENANCE.md`.
+Shared-screen co-op supports four roles with launch approvals. Guest practice does not alter career totals. Local profiles track attempts, failure rate, improvement-only success points and Trust. Existing v1 Earth saves remain compatible. The deterministic engine remains independent of provider access.
 
-The simulator uses constant rates between event boundaries. It handles sunlight/eclipse transitions, target passes, one-minute target tiles, contacts, battery capacity/reserve/depletion boundaries and player commands. Energy is W × elapsed hours, storage is GB, and communication rate is GB/min. Essential loads continue after imaging is shed. It caps energy, storage, collected area and delivered area. It does not propagate orbital mechanics, simulate ascent fuel, thermal dynamics, attitude dynamics, radio link budgets, weather probabilities or propulsion trajectories.
+## Mars practice and local geometry packs
 
-The spacecraft is a draggable box model drawn with a small Canvas painter renderer. Earth, orbital tracks, target ledger and rockets are schematic. Standard system fonts are used; Inter is preferred if installed. This edition contains no remote fonts, textures, scripts, API calls or dependencies. Content Security Policy disables network connections.
+Mars practice includes illustrative entry/descent, landing, three waypoints, two rock analyses and science relay. It is session-only, does not award career credit and is not a configurable spacecraft mission or validated reconstruction. Scenery is generated artwork, not NASA imagery. Lunar, asteroid and telescope missions remain planned.
 
-Lunar rover, Mars rover, asteroid and telescope missions are shown as explicitly unavailable planned scenarios. The native desktop distribution and validated NASA/JPL/operator data integrations remain future work.
+Data settings still supports optional Horizons geometry-pack import/export and rollback. A mission pins the selected pack. Calculated Earth–Mars range and ideal geometric delay are educational context; they do not replace the authored relay rules. The retained Horizons batch tool uses a different service with its own contact requirements; **API.txt is used for DONKI and does not authenticate Horizons**. No sourced Horizons starter or live Horizons ingestion has been verified. There is no contact-email setup form in the app.
 
 ## Source and development
 
-The release includes the complete editable project in `source/`.
+The complete project is in `source/` in the release. From that folder:
 
-```
+```sh
 node build.mjs
-node --test tests/*.test.cjs
+node tests/engine.test.cjs
+node tests/save.test.cjs
+node tests/data-packs.test.cjs
+python3 -m unittest discover -s tests -p 'test_*.py' -v
 python3 scripts/package_release.py
 ```
 
-Run these from the source directory. Node 20 or later is needed for development and tests; Python 3 is only used to assemble release archives. There are no package dependencies and no install step. `dist/index.html` is a self-contained game. Double-click it to play after building.
+Node 20+ is used for building/testing. Python 3 standard library supplies the launcher/updaters and packaging; no pip packages are required. Development launch: `python3 launcher.py --key-file ../API.txt` (or place a private key file in the source folder). Use `--port 8766` if the default port is occupied, `--no-browser` for manual opening, or `--cache-dir PATH` for isolated caches. `--refresh-only` performs one cache update and prints a safe status summary.
 
-- `data/catalog.json`: versioned component catalogue, scenario, orbit windows and carrier service profiles.
-- `src/engine.js`: deterministic DOM-free simulation, resource accounting, preflight and career rules.
-- `src/renderer.js`: Canvas box renderer, independent of simulation time.
-- `src/app.js`: stage navigation, local saves, crew, operations and report interface.
-- `src/style.css` / `src/shell.html`: interface styling and offline document shell.
-- `tests/`: 24 automated tests covering engineering calculations, scoring, replay and persistence.
-- `docs/`: model assumptions, acceptance evidence, extension guide and release status.
+The build emits `dist/index.html` (fully offline) and `dist/online.html` (local launcher UI). Packaging emits `ORBITAL-v0.2.0-data-preview.zip` and its offline standalone HTML. No API.txt, runtime reports, SQLite caches or Python bytecode are included.
 
-See `docs/VALIDATION.md` for measured and unmeasured performance targets. The suggested 60 fps / 500 MB browser targets still need profiling on the intended modest laptop. The measured headless replay benchmark is from the development host, not the user's laptop.
-
-## GitHub release status
-
-Source and downloadable release files are prepared. They have **not** been pushed to GitHub, and no public repository or Release has been created. Publishing needs an authorized GitHub connection and a repository destination. See `docs/RELEASE.md` for the intended release contents. Choose the repository visibility and licensing before a public release; this package does not choose a distribution license on the team's behalf.
+See `docs/NASA_DATA.md` for endpoints, source policy, limits and architecture; `docs/DATA_PROVENANCE.md` for scientific assumptions; `docs/VALIDATION.md` for tested and untested behavior. No GitHub repository is configured and nothing has been published. Native Windows/macOS execution, other browser engines, full mobile use and performance targets are not certified.

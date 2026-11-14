@@ -1,3 +1,16 @@
+# v0.2.0 update
+
+- Instant launch-window advancement and 1/10/60/240 min-per-second playback.
+- Next orbital event and run-to-end preserve Earth simulation results.
+- Illustrated post-launch dashboard with live phase, telemetry, trace and log.
+- Mars descent and rover practice with three waypoints, two analyses and science relay.
+- Existing v1 Earth saves remain compatible. Mars practice is session-only.
+- Bundled assets, source, tests and standalone HTML; no external runtime dependency.
+
+GitHub status: release package prepared locally. No authenticated repository is available in this workspace; nothing has been pushed or published.
+
+## Previous release notes
+
 # Release candidate 0.1.0
 
 Status: local release candidate built and tested; no GitHub repository or Release has been published.
@@ -26,3 +39,11 @@ This is a local browser application. Native desktop binaries, real NASA/JPL/oper
 6. Verify a fresh download with networking disabled and record browser/OS results before marking it a validated release.
 
 No secrets, user saves, local test profiles, helper tools, credentials or source document attachments are included in the release archive.
+
+## Data integration development preview (14 November 2026)
+
+Output names: `ORBITAL-v0.2.0-data-preview.zip` / `.html`. The packager includes optional Python tools, source and test fixtures (clearly synthetic), excludes Python caches, and preserves offline launchers. This preview contains the offline pack workflow and a tested-with-mocks Horizons adapter. Live request, sourced starter, online refresh companion and other mission adapters remain pending. Read `NASA_DATA.md` before describing the build as NASA-integrated. No repository, commit, issue or public release has been created.
+
+## API.txt launcher update
+
+The preview ZIP now includes `launcher.py`, `online.html`, `API.txt.example` and Python-based Play scripts. `index.html` and the exported single HTML retain fully offline play. Real API.txt and runtime caches are excluded. The launcher supplies DONKI space-weather reports (verified live) and local refresh/online/offline controls; it does not supply real-time spacecraft telemetry. The email form has been removed. The package remains a local development preview with no GitHub publication.
