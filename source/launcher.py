@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""ORBITAL local launcher. API.txt opts in to NASA DONKI updates; --offline makes no provider requests."""
+"""Start ORBITAL only after retrieving validated NASA DONKI data with your API key."""
 import argparse
 from datetime import datetime, timedelta, timezone
+import hashlib
 from email.utils import parsedate_to_datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -18,10 +19,13 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 import webbrowser
 
+from tools import nasa_data
+
 ROOT = Path(__file__).resolve().parent
 UTC = timezone.utc
 INTERVAL = 900
 MAX_BYTES = 1_000_000
+APP_VERSION = '0.3.3'
 FEEDS = {'flares': 'FLR', 'storms': 'GST', 'cmes': 'CME'}
 ENDPOINT = 'https://api.nasa.gov/DONKI/'
 PROVIDER_ENDPOINTS = {name: ENDPOINT+code for name, code in FEEDS.items()}
@@ -55,7 +59,7 @@ def read_key(path):
             value = stream.read(257).strip()
     except OSError:
         raise ValueError('API.txt is missing. Save only your NASA API key in that file beside launcher.py.') from None
-    if not re.fullmatch(r'[A-Za-z0-9_\-]{10,128}', value) or value == 'PASTE_YOUR_NASA_API_KEY_HERE':
+    if not re.fullmatch(r'[A-Za-z0-9_\-]{10,128}', value) or value.upper() in {'DEMO_KEY', 'PASTE_YOUR_NASA_API_KEY_HERE'}:
         raise ValueError('API.txt must contain only your NASA API key, without labels or quotes.')
     return value
 
@@ -113,11 +117,15 @@ def normalize(name, payload):
     return sorted(result, key=lambda row: row['observedAt'], reverse=True)
 
 
+class RejectedKey(ValueError):
+    pass
+
+
 def download(name, key, start, end, cancelled, opener=urlopen):
     query = {'startDate': start, 'endDate': end}
     if name != 'flares': query['api_key'] = key
     params = urlencode(query)
-    request = Request(PROVIDER_ENDPOINTS[name]+'?'+params, headers={'User-Agent': 'ORBITAL/0.2.0 NASA-DONKI-local-launcher', 'Accept': 'application/json'})
+    request = Request(PROVIDER_ENDPOINTS[name]+'?'+params, headers={'User-Agent': f'ORBITAL/{APP_VERSION} NASA-DONKI-local-launcher', 'Accept': 'application/json'})
     for attempt in range(3):
         if cancelled.is_set():
             raise ValueError('Update cancelled; previous reports retained.')
@@ -138,8 +146,8 @@ def download(name, key, start, end, cancelled, opener=urlopen):
             code = exc.code
             retry = exc.headers.get('Retry-After', '')
             exc.close()
-            if code in (401, 403):
-                raise ValueError('NASA rejected the key. Check API.txt and your NASA API access.') from None
+            if name != 'flares' and code in (401, 403):
+                raise RejectedKey('NASA rejected the request. Check your API key and NASA API access.') from None
             if code not in (429, 500, 502, 503, 504) or attempt == 2:
                 raise ValueError(f'NASA returned HTTP {code}; previous reports retained.') from None
             try:
@@ -183,82 +191,138 @@ def validate_cache(value):
 
 
 class Reports:
-    def __init__(self, key_file, cache_dir, offline=False, fetcher=download):
+    def __init__(self, key_file, cache_dir, fetcher=download):
         self.key_file, self.cache_dir, self.fetcher = Path(key_file), Path(cache_dir), fetcher
         self.cancelled, self.stop = threading.Event(), threading.Event()
         self.lock = threading.RLock()
-        self.cached, self.error, self.busy, self.last_attempt = None, '', False, 0
-        try:
-            path = self.cache_dir/'reports.json'
-            with path.open('rb') as stream:
-                raw = stream.read(3*MAX_BYTES+1)
-            if len(raw) > 3*MAX_BYTES: raise ValueError('Oversized cache')
-            self.cached = validate_cache(json.loads(raw))
-        except (OSError, ValueError, KeyError, TypeError):
-            pass
-        preference = None
-        try: preference = json.loads((self.cache_dir/'mode.json').read_text()).get('mode')
-        except (OSError, ValueError, AttributeError): pass
-        if self.cached:
-            age = max(0, (datetime.now(UTC)-epoch(self.cached['retrievedAt'])).total_seconds())
-            self.last_attempt = max(0, time.monotonic()-age)
-        self.mode = 'offline' if offline or preference == 'offline' or not self.key_file.is_file() else 'online'
-        if self.mode == 'offline': self.cancelled.set()
+        self.cached, self.error, self.busy, self.last_attempt = None, '', False, None
+        self.verified_key = None
+        self.mode = 'online'
+
+    def ready(self):
+        with self.lock:
+            if self.verified_key is None or self.cached is None:
+                return False
+            try:
+                return self.verified_key == self.key_fingerprint(read_key(self.key_file))
+            except ValueError:
+                return False
+
+    @staticmethod
+    def key_fingerprint(key):
+        return hashlib.sha256(key.encode()).digest()
 
     def state(self):
         with self.lock:
-            age = (datetime.now(UTC)-epoch(self.cached['retrievedAt'])).total_seconds() if self.cached else None
-            status = 'offline' if self.mode == 'offline' else 'stale' if self.cached and (self.error or age > INTERVAL*2) else 'current' if self.cached else 'missing'
-            return {'mode': self.mode, 'status': status, 'busy': self.busy, 'error': self.error, 'keyFilePresent': self.key_file.is_file(), 'refreshSeconds': INTERVAL, 'utcNow': now_iso(), 'report': self.cached}
+            ready = self.ready()
+            report = self.cached if ready else None
+            age = (datetime.now(UTC)-epoch(report['retrievedAt'])).total_seconds() if report else None
+            status = 'locked' if not ready else 'stale' if self.error or age > INTERVAL*2 else 'current'
+            return {'mode': self.mode, 'status': status, 'ready': ready, 'busy': self.busy,
+                    'error': self.error, 'refreshSeconds': INTERVAL, 'utcNow': now_iso(), 'report': report}
 
     def update(self):
         with self.lock:
-            if self.mode != 'online' or self.busy: return
+            if self.busy:
+                return False
             self.busy = True
-            self.cancelled.clear()
             self.last_attempt = time.monotonic()
         try:
             key = read_key(self.key_file)
             end = datetime.now(UTC).date()
             start = end-timedelta(days=7)
             feeds = {}
-            for name, endpoint in FEEDS.items():
+            # Authenticate at the keyed NASA gateway before fetching the remaining feeds.
+            for name in ['storms', 'cmes', 'flares']:
                 items = self.fetcher(name, key, start.isoformat(), end.isoformat(), self.cancelled)
-                feeds[name] = {'endpoint': PROVIDER_ENDPOINTS[name], 'startDate': start.isoformat(), 'endDate': end.isoformat(), 'items': items}
-            snapshot = validate_cache({'schemaVersion': 1, 'retrievedAt': now_iso(), 'provider': 'NASA CCMC DONKI', 'documentation': 'https://api.nasa.gov/', 'adapterVersion': 'donki-1', 'fieldStatus': 'Official reported events; educational context only', 'feeds': feeds})
+                feeds[name] = {'endpoint': PROVIDER_ENDPOINTS[name], 'startDate': start.isoformat(),
+                               'endDate': end.isoformat(), 'items': items}
+            snapshot = validate_cache({'schemaVersion': 1, 'retrievedAt': now_iso(), 'provider': 'NASA CCMC DONKI',
+                                       'documentation': 'https://api.nasa.gov/', 'adapterVersion': 'donki-1',
+                                       'fieldStatus': 'Official event reports', 'feeds': feeds})
+            encoded = json.dumps(snapshot, sort_keys=True, separators=(',', ':')).encode()
+            snapshot['datasetId'] = 'donki-' + hashlib.sha256(encoded).hexdigest()
             with self.lock:
-                if self.cancelled.is_set() or self.mode != 'online': return
+                if self.cancelled.is_set() or read_key(self.key_file) != key:
+                    raise ValueError('NASA key changed during verification. Retry with the current key.')
                 atomic_json(self.cache_dir/'reports.json', snapshot)
                 self.cached, self.error = snapshot, ''
+                self.verified_key = self.key_fingerprint(key)
+            return True
+        except RejectedKey as exc:
+            with self.lock:
+                self.verified_key, self.error = None, str(exc)
         except ValueError as exc:
-            with self.lock: self.error = str(exc)
+            with self.lock:
+                self.error = str(exc)
         except Exception:
-            # Never expose raw exceptions: upstream URLs can contain the key.
-            with self.lock: self.error = 'Update failed; previous reports retained.'
+            with self.lock:
+                self.error = 'Could not acquire or store NASA reports. Check the connection and cache directory.'
         finally:
-            with self.lock: self.busy = False
+            with self.lock:
+                self.busy = False
+        return False
 
     def control(self, mode):
-        if mode not in ('offline', 'online', 'refresh'): raise ValueError('Unknown data mode')
+        if mode != 'refresh':
+            raise ValueError('Choose Refresh reports to retrieve NASA data.')
         with self.lock:
-            if mode == 'offline':
-                self.mode = 'offline'
-                self.cancelled.set()
-            else:
-                if not self.key_file.is_file(): raise ValueError('Save your NASA key in API.txt beside launcher.py, then retry.')
-                if mode == 'refresh' and time.monotonic()-self.last_attempt < 60:
-                    raise ValueError('Please wait one minute between manual updates; cached reports remain available.')
-                self.mode = 'online'
-            atomic_json(self.cache_dir/'mode.json', {'mode': self.mode})
-        if mode != 'offline': threading.Thread(target=self.update, daemon=True).start()
+            read_key(self.key_file)
+            if self.busy or (self.last_attempt is not None and time.monotonic()-self.last_attempt < 60):
+                raise ValueError('Wait one minute between NASA refresh attempts.')
+        threading.Thread(target=self.update, daemon=True).start()
 
     def schedule(self):
         while not self.stop.is_set():
-            if self.mode == 'online' and (not self.last_attempt or time.monotonic()-self.last_attempt >= INTERVAL): self.update()
+            if self.last_attempt is None or time.monotonic()-self.last_attempt >= INTERVAL:
+                self.update()
             self.stop.wait(1)
 
 
-def handler_for(reports, app_dir):
+class Geometry:
+    """Official-only geometry for new missions, populated directly from JPL."""
+    def __init__(self, contact, reports):
+        self.contact = contact
+        self.reports = reports
+        self.lock = threading.Lock()
+        self.pack, self.error, self.last_attempt = None, '', None
+        self.busy = False
+
+    def state(self):
+        with self.lock:
+            return {'busy': self.busy, 'error': self.error, 'contactConfigured': bool(self.contact),
+                    'pack': self.pack}
+
+    def refresh(self):
+        if not self.contact:
+            raise ValueError('Restart with --jpl-contact and your real email or project contact URL.')
+        with self.lock:
+            if self.busy or (self.last_attempt is not None and time.monotonic()-self.last_attempt < 60):
+                raise ValueError('Wait one minute between Horizons requests.')
+            self.busy = True
+            self.last_attempt = time.monotonic()
+        threading.Thread(target=self.update, daemon=True).start()
+
+    def update(self):
+        try:
+            params = nasa_data.parameters(datetime.now(UTC).date().isoformat(), 1)
+            repo = nasa_data.Repository(self.reports.cache_dir/'geometry')
+            with repo.locked():
+                raw = nasa_data.retrieve(params, self.contact, cancel=self.reports.cancelled.is_set)
+                pack = nasa_data.validate(nasa_data.make_pack(raw, params))
+                nasa_data.atomic(repo.root/'verified-latest.json', nasa_data.canonical(pack))
+            with self.lock:
+                self.pack, self.error = pack, ''
+        except Exception:
+            # Do not expose the contact header or raw upstream exception.
+            with self.lock:
+                self.error = 'Could not acquire validated Horizons geometry. Check your contact, network and JPL availability.'
+        finally:
+            with self.lock:
+                self.busy = False
+
+
+def handler_for(reports, app_dir, geometry=None):
     class Handler(BaseHTTPRequestHandler):
         def allowed(self, mutation=False):
             expected = f'127.0.0.1:{self.server.server_port}'
@@ -282,21 +346,41 @@ def handler_for(reports, app_dir):
             if not self.allowed(): return
             path = urlsplit(self.path).path
             if path in ('/', '/index.html'):
-                self.reply((app_dir/'online.html').read_bytes(), kind='text/html; charset=utf-8')
-            elif path == '/api/nasa/status': self.reply(reports.state())
+                if reports.ready():
+                    self.reply((app_dir/'online.html').read_bytes(), kind='text/html; charset=utf-8')
+                else:
+                    self.reply((app_dir/'index.html').read_bytes(), code=503, kind='text/html; charset=utf-8')
+            elif path == '/api/nasa/status':
+                state = reports.state()
+                if state['ready'] and geometry is not None:
+                    state['geometry'] = geometry.state()
+                self.reply(state)
             else: self.send_error(404)
 
         def do_POST(self):
             if not self.allowed(mutation=True): return
-            if self.path != '/api/nasa/mode': self.send_error(404); return
+            if self.path not in ('/api/nasa/mode', '/api/nasa/geometry'):
+                self.send_error(404)
+                return
             try:
                 length = int(self.headers.get('Content-Length', '0'))
                 if not 0 < length <= 100 or self.headers.get('Content-Type') != 'application/json': raise ValueError('Invalid control request')
                 body = json.loads(self.rfile.read(length))
-                reports.control(body['mode'])
-                self.reply(reports.state())
-            except (ValueError, KeyError, TypeError):
-                self.reply({'error': 'Cannot change mode. Check API.txt; wait a minute before another refresh.'}, 400)
+                if self.path == '/api/nasa/geometry':
+                    if not reports.ready() or geometry is None:
+                        self.reply({'error': 'Verify NASA access before retrieving Horizons geometry.'}, 503)
+                        return
+                    if body != {'mode': 'refresh'}:
+                        raise ValueError('Invalid geometry request.')
+                    geometry.refresh()
+                    self.reply(geometry.state(), 202)
+                else:
+                    reports.control(body['mode'])
+                    self.reply(reports.state())
+            except ValueError as exc:
+                self.reply({'error': str(exc)}, 400)
+            except (KeyError, TypeError):
+                self.reply({'error': 'Invalid refresh request.'}, 400)
             except OSError: self.reply({'error': 'Could not save local mode preference.'}, 500)
 
         def log_message(self, *_): pass
@@ -308,24 +392,32 @@ def main():
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--key-file', type=Path, default=ROOT/'API.txt')
     parser.add_argument('--cache-dir', type=Path, default=Path.home()/'.local/share/orbital/nasa')
-    parser.add_argument('--offline', action='store_true')
+    parser.add_argument('--offline', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--jpl-contact', default=os.environ.get('ORBITAL_JPL_CONTACT', ''),
+                        help='Real email or project contact URL for NASA/JPL Horizons requests used by Mars')
     parser.add_argument('--no-browser', action='store_true')
     parser.add_argument('--refresh-only', action='store_true', help='Download/cache once without starting the browser/server')
     args = parser.parse_args()
-    reports = Reports(args.key_file, args.cache_dir, args.offline)
+    if args.offline:
+        parser.exit(1, 'NASA verification is required at startup. Remove --offline and connect to NASA.\n')
+    reports = Reports(args.key_file, args.cache_dir)
+    if not args.refresh_only:
+        print('Verifying NASA API key and downloading official DONKI reports…', flush=True)
+    if not reports.update() or not reports.ready():
+        parser.exit(1, f"ORBITAL did not start. {reports.state()['error'] or 'NASA verification failed.'}\n")
     if args.refresh_only:
-        reports.update()
         state = reports.state()
         print(json.dumps({'status': state['status'], 'error': state['error'], 'retrievedAt': state['report']['retrievedAt'] if state['report'] else None, 'counts': {name: len(feed['items']) for name, feed in (state['report'] or {}).get('feeds', {}).items()}}))
         return 1 if state['error'] else 0
     app_dir = ROOT if (ROOT/'online.html').is_file() else ROOT/'dist'
     if not (app_dir/'online.html').is_file(): parser.exit(1, 'Missing online.html. Extract the complete release or run node build.mjs in source/.\n')
-    try: server = ThreadingHTTPServer(('127.0.0.1', args.port), handler_for(reports, app_dir))
+    geometry = Geometry(args.jpl_contact, reports)
+    try: server = ThreadingHTTPServer(('127.0.0.1', args.port), handler_for(reports, app_dir, geometry))
     except OSError: parser.exit(1, 'Could not start local launcher. Try --port 8766.\n')
     worker = threading.Thread(target=reports.schedule, daemon=True)
     worker.start()
     url = f'http://127.0.0.1:{server.server_port}'
-    print(f'ORBITAL: {url}\nNASA mode: {reports.mode}. API.txt stays private. Press Ctrl+C to stop.', flush=True)
+    print(f'ORBITAL: {url}\nNASA data verified. API.txt stays private. Press Ctrl+C to stop.', flush=True)
     if not args.no_browser: webbrowser.open(url)
     try: server.serve_forever()
     except KeyboardInterrupt: pass

@@ -72,7 +72,7 @@ var sp=[];for(var n=0;n<700;n++){var u=Math.random()*2-1,t=Math.random()*6.283,r
 var sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));
 S.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0xffffff,size:.9,sizeAttenuation:false})));
 var earth=new THREE.Group();earth.position.set(0,-78,-20);S.add(earth);
-earth.add(new THREE.Mesh(new THREE.SphereGeometry(60,28,18),new THREE.MeshStandardMaterial({color:0x2a64b0,roughness:.9,metalness:0,emissive:0x07162e})));
+earth.add(new THREE.Mesh(new THREE.SphereGeometry(60,48,32),new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(OrbitalEarth.surface()),roughness:.9,metalness:0,emissive:0x07162e})));
 earth.add(new THREE.Mesh(new THREE.SphereGeometry(62.5,28,18),new THREE.MeshBasicMaterial({color:0x6fb2ff,transparent:true,opacity:.22,side:THREE.BackSide,blending:THREE.AdditiveBlending,depthWrite:false})));
 
 // orbit controls

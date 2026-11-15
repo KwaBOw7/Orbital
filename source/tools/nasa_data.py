@@ -25,6 +25,9 @@ DOC = 'https://ssd-api.jpl.nasa.gov/doc/horizons.html'
 MAX_BYTES = 512_000
 MAX_PACKS = 64
 VERSION = '1.3'
+APP_VERSION = '0.3.3'
+PACK_SCHEMA = 'orbital.earth-mars-v1'
+INTERPOLATION = 'cubic-hermite-position-velocity-v1'
 C_KM_S = 299792.458
 ROOT = Path(__file__).resolve().parents[1]
 UTC = timezone.utc
@@ -99,7 +102,7 @@ def parse_horizons(payload, params):
 def make_pack(payload, params):
     rows = parse_horizons(payload, params)
     data = {'samples': rows}
-    manifest = {'schemaVersion': 1, 'packVersion': 1, 'compatibleGameVersions': ['0.2.0'], 'kind': 'earth-mars-geometry', 'createdAt': iso(datetime.now(UTC)), 'provider': 'NASA/JPL Horizons', 'endpoint': ENDPOINT, 'documentation': DOC, 'dataset': 'Mars (499) relative to Earth geocenter (399)', 'revision': {'apiVersion': VERSION, 'rawSha256': digest(payload)}, 'request': params, 'acquiredAt': iso(datetime.now(UTC)), 'observationTime': None, 'coverage': {'start': rows[0]['epochUtc'], 'end': rows[-1]['epochUtc'], 'stepSeconds': 3600}, 'frame': 'ICRF', 'origin': 'Earth geocenter (399)', 'timeScale': 'UTC', 'rawUnits': {'position': 'km', 'velocity': 'km/s'}, 'normalizedUnits': {'range': 'km', 'idealDelay': 's'}, 'fieldStatus': {'epochUtc': 'official calculated ephemeris', 'positionKm': 'official calculated ephemeris', 'velocityKmS': 'official calculated ephemeris', 'rangeKm': 'derived', 'idealDelaySeconds': 'derived', 'hardware': 'game-tuned', 'measurementUncertainty': 'unknown'}, 'adapterVersion': 'horizons-vector-1', 'transformVersion': 'norm-over-c-1', 'qualityFlags': ['Calculated geometry, not telemetry', 'Hourly samples: nearest sample only; no interpolation or extrapolation', 'Ideal vacuum delay excludes motion during propagation, relay and processing'], 'assets': [], 'attribution': 'NASA/JPL Solar System Dynamics, Horizons', 'usageTerms': 'https://ssd.jpl.nasa.gov/horizons/manual.html#acknowledgements', 'dataBytes': len(canonical(data)), 'dataSha256': digest(data)}
+    manifest = {'schemaVersion': 1, 'packVersion': 1, 'formatId': PACK_SCHEMA, 'interpolation': INTERPOLATION, 'kind': 'earth-mars-geometry', 'createdAt': iso(datetime.now(UTC)), 'provider': 'NASA/JPL Horizons', 'endpoint': ENDPOINT, 'documentation': DOC, 'dataset': 'Mars (499) relative to Earth geocenter (399)', 'revision': {'apiVersion': VERSION, 'rawSha256': digest(payload)}, 'request': params, 'acquiredAt': iso(datetime.now(UTC)), 'observationTime': None, 'coverage': {'start': rows[0]['epochUtc'], 'end': rows[-1]['epochUtc'], 'stepSeconds': 3600}, 'frame': 'ICRF', 'origin': 'Earth geocenter (399)', 'timeScale': 'UTC', 'rawUnits': {'position': 'km', 'velocity': 'km/s'}, 'normalizedUnits': {'range': 'km', 'idealDelay': 's'}, 'fieldStatus': {'epochUtc': 'official calculated ephemeris', 'positionKm': 'official calculated ephemeris', 'velocityKmS': 'official calculated ephemeris', 'rangeKm': 'derived', 'idealDelaySeconds': 'derived', 'hardware': 'game-tuned', 'measurementUncertainty': 'unknown'}, 'adapterVersion': 'horizons-vector-1', 'transformVersion': 'hermite-norm-over-c-1', 'qualityFlags': ['Calculated geometry, not telemetry', 'Hourly source samples; application uses cubic Hermite interpolation inside coverage only', 'Ideal vacuum delay excludes motion during propagation, relay and processing'], 'assets': [], 'attribution': 'NASA/JPL Solar System Dynamics, Horizons', 'usageTerms': 'https://ssd.jpl.nasa.gov/horizons/manual.html#acknowledgements', 'dataBytes': len(canonical(data)), 'dataSha256': digest(data)}
     manifest['packId'] = 'mars-' + manifest['dataSha256'][:16]
     return {'manifest': manifest, 'data': canonical(data).decode('ascii')}
 
@@ -111,8 +114,11 @@ def validate(pack):
     if not isinstance(encoded, str) or not encoded.isascii():
         raise ValueError('Expected ASCII JSON payload')
     d = json.loads(encoded)
-    if m.get('schemaVersion') != 1 or m.get('packVersion') != 1 or m.get('compatibleGameVersions') != ['0.2.0'] or m.get('kind') != 'earth-mars-geometry':
+    if m.get('schemaVersion') != 1 or m.get('packVersion') != 1 or m.get('kind') != 'earth-mars-geometry':
         raise ValueError('Incompatible pack')
+    if m.get('formatId') != PACK_SCHEMA or m.get('interpolation') != INTERPOLATION:
+        if 'formatId' in m or 'interpolation' in m or m.get('compatibleGameVersions') != ['0.2.0']:
+            raise ValueError('Unsupported pack format or interpolation')
     expected = hashlib.sha256(encoded.encode('ascii')).hexdigest()
     if m.get('dataSha256') != expected or m.get('dataBytes') != len(encoded) or m.get('packId') != 'mars-'+expected[:16]:
         raise ValueError('Pack checksum or identifier mismatch')
@@ -242,7 +248,7 @@ class Repository:
 def retrieve(params, contact, cancel=lambda: False, opener=urlopen, sleeper=time.sleep):
     if not contact or not re.fullmatch(r'[^\s<>]{5,200}', contact) or not ('@' in contact or contact.startswith('https://')):
         raise ValueError('Set --contact to your real email or project contact URL (required by JPL)')
-    request = Request(ENDPOINT+'?'+urlencode(params), headers={'User-Agent': f'ORBITAL/0.2.0 (Earth-Mars educational pack downloader; contact: {contact})', 'Accept': 'application/json'})
+    request = Request(ENDPOINT+'?'+urlencode(params), headers={'User-Agent': f'ORBITAL/{APP_VERSION} (Earth-Mars educational pack downloader; contact: {contact})', 'Accept': 'application/json'})
     for attempt in range(3):
         if cancel():
             raise ValueError('Download cancelled')

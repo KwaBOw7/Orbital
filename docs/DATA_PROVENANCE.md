@@ -1,4 +1,4 @@
-# ORBITAL v0.3.1 data and model provenance
+# ORBITAL v0.3.3 data and model provenance
 
 The game distinguishes sourced context, application-derived quantities and authored assumptions. No NASA data source validates an unrelated hardware field merely by being connected to the app.
 
@@ -15,14 +15,21 @@ The game distinguishes sourced context, application-derived quantities and autho
 | Mars descent altitude and speed | Interpolated authored checkpoints | No atmosphere/drag/parachute/engine trajectory solver |
 | Rover movement | Simplified kinematics on procedural height field | Battery, slope and boundary checks; no suspension or rock collision |
 | Terrain and landing coordinates | User-supplied procedural terrain | Local x/z survey coordinates, not geographic Jezero reconstruction |
-| DONKI reports | NASA feeds through optional Python service | Dated context only; no mission mechanics/scoring effect |
-| Imported Horizons state vectors | User-selected pack with claimed source/manifest | Integrity and schema checked; import alone does not prove authorship |
+| DONKI reports | NASA feeds through optional Python service | Required startup data and recorded player go/no-go review; no calibrated physical effect |
+| Imported Horizons state vectors | Direct download by the launcher for new Mars runs | Official endpoint and response validated; previously saved packs are historical |
 | Intermediate geometry and range | Application Hermite interpolation, vector norm | Derived estimate; dense-reference accuracy validation pending |
-| Ideal communication delay | Instantaneous geometric range / 299792.458 km/s | Not retarded light time, relay/processing latency or link availability |
+| Ideal communication delay | Instantaneous geometric range / 299792.458 km/s | Used for game Earth reception time; excludes retarded light time, processing and link availability |
 | Hubble, rocket and rover visuals | Supplied reference scene/model assets | Visual stand-ins; not verified engineering assemblies |
 
 A 500/700 km label does not make the repeating orbit schedule a propagated solution. Hubble is a telescope visualization used at the user's request for the Earth mission, not a radar Earth-observation platform. Fairing checks compare a game envelope; they do not test mesh collisions. Scene altitude is compressed for visibility while the HUD displays the illustrative mission timeline.
 
-The offline game does not request NASA data. The optional NASA launcher and Horizons batch downloader are separate acquisition routes; their limits and prior evidence are documented in NASA_DATA.md. No sourced Horizons starter pack or actual flood imagery is bundled.
+See [NASA_DATA.md](NASA_DATA.md) for the request specification and [AUDIT_REVIEW.md](AUDIT_REVIEW.md) for model-specific acceptance tests. Synthetic flood coverage, authored orbital and relay schedules, hardware parameters, descent and terrain remain engineering work. The launch gate and Mars signal delay have fixture-based software validation.
 
-See ASSET_PROVENANCE.md for asset identities and unresolved permissions. See AUDIT_REVIEW.md for sources and the proposed validation sequence. All six critical scientific requirements in the submitted audit remain open.
+| Derived parameter | Equation or data source | Uncertainty and evidence |
+| --- | --- | --- |
+| Earth–Mars range | Norm of NASA/JPL Horizons geometric position in km | Parsed exact source epochs. Independent interpolation benchmark pending. |
+| Ideal signal delay | Range divided by the conventional speed of light, 299,792.458 km/s | Excludes moving receiver, propagation medium, relay and processing. Analytic conversion and reception deadline tests pass. |
+| DONKI Kp summary | Maximum numeric Kp value reported for an event | Preserves unknowns. Report latency and observing coverage affect interpretation. |
+| Equipment, contacts and flood targets | Authored catalogue and scenario rules | No engineering uncertainty estimates assigned. |
+
+[Horizons API](https://ssd-api.jpl.nasa.gov/doc/horizons.html) · [NASA DONKI](https://ccmc.gsfc.nasa.gov/tools/DONKI/) · [BIPM SI definitions](https://www.bipm.org/en/measurement-units/si-defining-constants)

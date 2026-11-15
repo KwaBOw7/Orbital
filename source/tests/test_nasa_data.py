@@ -53,7 +53,7 @@ class AdapterTests(unittest.TestCase):
                 n.make_pack(data,n.parameters('2026-11-14',1))
 
     def test_pack_corruption_incompatible_and_executable_assets(self):
-        for mutate in [lambda p:p['manifest'].update(schemaVersion=2),lambda p:p['manifest'].update(assets=[{'file':'../../run.sh'}]),lambda p:p.update(data=p['data']+' '),lambda p:p['manifest'].update(rawUnits={'position':'au','velocity':'km/s'}),lambda p:p['manifest'].update(compatibleGameVersions=['99.0.0'])]:
+        for mutate in [lambda p:p['manifest'].update(schemaVersion=2),lambda p:p['manifest'].update(assets=[{'file':'../../run.sh'}]),lambda p:p.update(data=p['data']+' '),lambda p:p['manifest'].update(rawUnits={'position':'au','velocity':'km/s'}),lambda p:p['manifest'].update(formatId='orbital.earth-mars-v99')]:
             p=pack();mutate(p)
             with self.assertRaises(ValueError):n.validate(p)
 
@@ -69,7 +69,7 @@ class AdapterTests(unittest.TestCase):
             return io.BytesIO(json.dumps(fixture()).encode())
         result=n.retrieve(n.parameters('2026-11-14',1),'test@example.invalid',opener=opener,sleeper=sleeps.append)
         self.assertEqual(result,fixture());self.assertEqual(sleeps,[2,2]);self.assertEqual(len(calls),3)
-        self.assertIn('ORBITAL/0.2.0',calls[0].get_header('User-agent'))
+        self.assertIn('ORBITAL/0.3.3',calls[0].get_header('User-agent'))
         self.assertNotIn('api_key',calls[0].full_url)
 
     def test_retries_are_bounded_on_timeout_and_server_failure(self):

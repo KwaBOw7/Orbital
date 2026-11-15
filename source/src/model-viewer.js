@@ -1,6 +1,10 @@
 /* The reference scenes run only while their dialog is open. */
 const OrbitalModels = (() => {
   const models = {
+    earth: {title:'Earth · interactive globe',description:'Your supplied procedural Earth artwork. Geography is illustrative.',scene:earthScene,controls:[['bs','Spin',true],['bc','Clouds',true],['bn','Light night side',false],['bi','Zoom in',false],['bo','Zoom out',false]]},
+    moon: {title:'Moon · cratered surface',description:'Your supplied procedural Moon. Drag to inspect the relief; this is not a measured elevation map.',scene:moonScene,controls:[]},
+    lander: {title:'Lunar lander · model preview',description:'Explore the supplied lander and preview its descent engine. The lunar mission is still planned.',scene:landerScene,controls:[['fire','Fire descent engine',false]]},
+    'mars-globe': {title:'Mars · surface overview',description:'Your supplied Mars globe with illustrative relief and landmark pins. Surface driving uses the mountain terrain.',scene:marsGlobeScene,controls:[['bRelief','Exaggerate relief',false],['bPins','Landmarks',true],['bSpin','Auto-rotate',true]]},
     hubble: {
       title: 'Hubble · Earth observation reference',
       description: 'Explore Hubble’s hardware. Your Earth observation satellite uses the parts selected in the builder.',
@@ -69,5 +73,5 @@ const OrbitalModels = (() => {
     }
   }
 
-  return {open};
+  return {open,get:key=>models[key]};
 })();

@@ -1,54 +1,46 @@
-# ORBITAL v0.3.1 NASA data integration
+# ORBITAL v0.3.3 NASA data
 
-Updated 14 November 2026. This supersedes the earlier UI email setup and CLI-only acquisition plan. The standalone game and its offline guarantees are preserved.
+## Startup and identity
 
-## Supported flow and modes
+The launcher reads a personal key from `API.txt` and requests the newest available seven-day UTC interval from the two keyed DONKI feeds. It also queries the official flare feed. It validates the response shape, timestamps, identifiers and numeric bounds, atomically saves the snapshot, and only then binds the loopback server and opens the game. A valid empty event array represents a successful query with no reports. A missing, malformed, rejected or placeholder key, incomplete response or cache write failure aborts startup.
 
-A player saves their NASA gateway key as **API.txt** beside `launcher.py`. Run `Start-NASA-Linux.sh`, `Start-NASA-macOS.command`, `Start-NASA-Windows.cmd` or `python3 launcher.py` to open the NASA reports edition. The Play scripts open the standalone game. There is no email entry form, browser key field, account, provider URL proxy or public server. API.txt presence opts a fresh installation into online report updates. Missing key or `--offline` keeps provider access off. A previously selected Offline setting is retained in the local cache directory; Enable NASA updates switches it on again.
-
-The launcher binds only to `127.0.0.1` and serves the separate `online.html`. All upstream access is in Python. A fixed status route and bounded mode-control route are the only API endpoints. Host validation rejects DNS rebinding; mutations require the exact local Origin and JSON body. API.txt, source files and arbitrary paths are not served. HTML permits only same-origin connections. The standalone `index.html` retains `connect-src 'none'`, contains no network primitives, and needs neither Python nor connectivity.
-
-Reports refresh at most every 15 minutes automatically, with reuse of a fresh cache after restart. Manual refresh has a one-minute minimum interval. Browser status polling is local-only and independent of simulation speed. Offline stops new provider operations; an in-flight request can take up to its timeout to finish/abort. A complete validated snapshot is staged and atomically replaces the last good cache. Partial, malformed, auth, timeout, quota, write or provider failures retain the previous snapshot. Cached data is shown as offline/stale with event and retrieval times.
-
-## Current sources (verified 14 November 2026)
-
-| Feed | Endpoint | Access / fields used |
+| Official feed | Endpoint | Selected fields |
 | --- | --- | --- |
-| Solar flares | `https://ccmc.gsfc.nasa.gov/DONKI-API/get/FLR` | Current documented public endpoint; no key forwarded. ID, begin/peak UTC and flare class. |
-| Geomagnetic storms | `https://api.nasa.gov/DONKI/GST` | NASA key from API.txt. ID, start UTC and reported maximum Kp. |
-| Coronal mass ejections | `https://api.nasa.gov/DONKI/CME` | NASA key from API.txt. ID, start UTC and best-available analysed speed in km/s. |
+| Geomagnetic storms | `https://api.nasa.gov/DONKI/GST` | Event identifier/start, maximum reported Kp |
+| Coronal mass ejections | `https://api.nasa.gov/DONKI/CME` | Event identifier/start, selected analysis speed in km/s |
+| Solar flares | `https://ccmc.gsfc.nasa.gov/DONKI-API/get/FLR` | Event identifier, start/peak UTC, reported class |
 
-NASA's gateway FLR route returned HTTP 404 because it forwarded to a trailing-slash upstream path. The current CCMC OpenAPI reference documents the canonical `/get/FLR` operation, which was successfully used directly. GST/CME gateway requests succeeded with the provided key. The key is sent only to the NASA gateway, not to the public flare operation.
+[DONKI documentation](https://api.nasa.gov/) · [NASA CCMC DONKI](https://ccmc.gsfc.nasa.gov/tools/DONKI/)
 
-Live verification at **2026-11-14T14:11:11Z**, for 2026-11-07 through 2026-11-14 UTC, yielded **7 flare records, 0 storm records and 20 CME records**. All three lists were normalized, validated and persisted. This establishes live DONKI ingestion, not real-time spacecraft telemetry or quantitative mission physics. Zero storm reports does not establish safe conditions. NASA describes DONKI as near-real-time research analyses, with variable reporting/publication delay and no guaranteed fixed latency.
+The browser requires a verified status response from `127.0.0.1`. The server restricts Host and checks Origin on POST requests. The key goes to the NASA gateway only. It is absent from HTML, browser requests, save files, cache and release archives. The app checks for launcher verification every five seconds while visible. A transient upstream refresh failure marks reports stale for the current verified session. A deleted, changed or rejected key locks the game. An earlier process's cache cannot satisfy a new startup.
 
-Official references:
+## From reports to a mission decision
 
-- Catalog/gateway endpoints: https://api.nasa.gov/
-- Gateway rate limits: https://api.nasa.gov/assets/html/authentication.html
-- Current API reference: https://ccmc.gsfc.nasa.gov/DONKI/api/
-- Current OpenAPI schema: https://ccmc.gsfc.nasa.gov/DONKI/api/openapi/
-- Scientific scope, research quality, migration and rules: https://ccmc.gsfc.nasa.gov/tools/DONKI/
+At each new Earth or Mars launch and replay, the player sees the publication interval, retrieval time, counts and latest available reported values. The player can return to planning or acknowledge the report and launch. The saved run records the reviewed snapshot's content-based dataset identifier, adapter version, timestamps and a feed summary. A refresh during review requires acknowledgment of the newer snapshot. DONKI does not supply spacecraft trajectories, real-time telemetry or a calibrated hardware risk model.
 
-Default gateway limits are 1,000 requests per hour per key; DEMO_KEY has lower limits. Each update uses three sequential operations, with at most three attempts per operation. Each response is bounded to 1 MB, 2,000 records and a 20-second socket timeout. Retry-After is honored for short waits; longer waits stop that update until a later cycle. Other transient retries use bounded exponential backoff/jitter. Auth errors do not loop. Raw exception URLs are never returned or logged.
+## Horizons acquisition and Mars delivery
 
-## Cache, normalization and privacy
+In **Data settings**, **Download Horizons geometry** calls the local Python adapter. Set `--jpl-contact` or `ORBITAL_JPL_CONTACT` to an actual email or project contact URL. The adapter uses the documented JPL API version, product endpoints and application user agent. It sends one bounded request at a time, with explicit backoff on transient failures. The NASA key does not go to JPL. [Horizons API](https://ssd-api.jpl.nasa.gov/doc/horizons.html) · [JPL API policy](https://ssd-api.jpl.nasa.gov/doc/)
 
-`~/.local/share/orbital/nasa/reports.json` stores schema-versioned normalized reports, provider, adapter version, actual endpoints, canonical start/end dates, acquisition UTC and selected official fields. Raw source units are already the display units: km/s, Kp and flare class. Missing numerical values stay null/unknown. Invalid timestamps, duplicate IDs, nonfinite values, unreasonable ranges or excessive lists reject the snapshot. No NASA imagery, logo or third-party media is downloaded or redistributed.
+- The request fetches Mars (499) relative to the Earth geocenter (399) over one UTC day with hourly spacing. Vectors use ICRF, KM-S and geometric corrections set to NONE.
+- The adapter checks the reported frame, target, center, time, units and format. It validates all 25 epochs and records the full canonical request, raw response digest, dataset ID, coverage and attribution.
+- A new Mars mission requires the pack verified through the running launcher. The game stores that pack with the run. A refresh cannot modify it. Older saves can retain their historical pack and original timing. Checksums on imported or saved files establish internal integrity. The runtime does not use them for startup verification.
+- The Mars ephemeris clock starts at the pack's first epoch. Intermediate epochs use cubic Hermite interpolation from bracketing position and velocity. Out-of-range calculations are unavailable.
+- At upload completion, the simulator calculates the ideal one-way delay as the norm of the interpolated vector divided by 299,792.458 km/s. Earth receives the results only when that time elapses. An upload must fit within the simulated Mars relay window, and receipt must meet the mission deadline. This uses geocentric range and does not model relay processing, retarded time, RF margin or line of sight.
 
-`mode.json` stores only the selected mode. The key is read from API.txt on each update, not stored in reports, browser storage, HTML, saves or exported geometry packs. The released ZIP contains only `API.txt.example`; the real file and any runtime cache are excluded. Never share the private file. The local user keeps control of it.
+### Reproduce a geometry download
 
-The latest-data panel shows real-world UTC, query interval, event times and successful retrieval time. It is separate from the accelerated simulation clock and any imported ephemeris clock. These reports are educational mission context only. They do not change active or future mission hardware, objective, simulated weather, relay timing, physics or score.
+From the extracted package, choose the UTC start date and duration. Use the same parameters recorded in the pack. Example
 
-## Retained geometry-pack work
+```bash
+python3 tools/nasa_data.py refresh --start 2026-11-15 --days 1 \
+  --contact "your-real-contact@example.com" --output earth-mars-pack.json
+```
 
-The offline geometry schema, import/export, IndexedDB rollback and mission snapshots remain intact. A selected pack is pinned at launch; Earth save/replay/report exports include it. Old v1 saves restore without a pack. Configured Mars missions also persist/export their pinned snapshot, configuration and surface state.
+The standalone CLI's repository supports export, import and rollback for analysis. Game launch geometry comes through the running service's fetch path. The release contains no starter pack. A dense independently acquired reference for interpolation and spacecraft validation is pending.
 
-The optional `tools/nasa_data.py` Horizons adapter still supports bounded geometric Mars-relative-to-Earth vectors in ICRF, modern UTC epochs and km/km/s. It requires the separately documented JPL contact User-Agent, sequential cached requests and API-version checking. It is not invoked by the key-file launcher, and its contact form has been removed from the UI. API.txt does not authenticate Horizons. No sourced Horizons starter or successful live Horizons acquisition is claimed.
+## Data lineage
 
-Geometry packs use an exact ASCII JSON payload plus manifest/checksum, reject executable assets and ZIP imports, and are limited to 512 KB. The local CLI repository retains SQLite indexing, staged activation and prior versions; browser storage commits active/previous packs together. Integrity hashes do not prove official authorship. Range is derived from vector norm; ideal geometric delay divides range by 299792.458 km/s. Exact sample epochs are retained. Intermediate epochs use application-derived cubic Hermite interpolation of position and velocity; range and ideal delay are recomputed. Bracketing epochs are displayed. No extrapolation occurs outside coverage, and interpolation error against dense reference data is not yet certified. Relay/processing/motion delays are excluded.
+DONKI snapshots have schema version 1 and adapter `donki-1`. Generated Horizons packs carry format `orbital.earth-mars-v1` and interpolation `cubic-hermite-position-velocity-v1`. A legacy reader recognizes v1 envelopes produced by older ORBITAL releases. The format rather than the software release governs new pack compatibility.
 
-## Remaining scope
-
-Earth CMR/GIBS quantitative flood products, lunar/Mars PDS terrain, asteroid SBDB targets, exoplanet catalogs, validated engineering values, spacecraft telemetry and independently validated mission mechanics remain deferred. Real data availability does not mark planned missions playable. The existing generated scenes and descent checkpoints remain illustrative. GitHub publication is pending; no repository or issue IDs were invented.
-
+NASA reports are observations or analyses. JPL vectors are provider-calculated ephemerides. ORBITAL interpolation, range and delay are derived values. Review the [model provenance](DATA_PROVENANCE.md) and [fix register](AUDIT_REVIEW.md) for the educational models and open validation.

@@ -1,37 +1,19 @@
-# ORBITAL v0.3.1 progress
+# ORBITAL v0.3.3 progress
 
-Local status, 14 November 2026. This file is a GitHub handoff checklist, not evidence of remote issues, commits or publication. No repository is configured.
+| Date | Release | Evidence |
+| --- | --- | --- |
+| 14 November 2026 | v0.3.1 | Launcher, saved Mars progression and geometry interpolation corrections |
+| 15 November 2026 | v0.3.2 | Supplied 3D models integrated |
+| 15 November 2026 | v0.3.3 | Required official NASA data, launch review, JPL acquisition and Mars science delivery timing |
 
-## Implemented
+The current working copy is local. Public repository URL, release tag, commit and issue links are pending.
 
-- [x] Offline Earth mission, resource ledger, scoring, replay and saved state.
-- [x] Mars type/parts/upgrades/rocket/orbit configuration and keyboard control.
-- [x] Mars persistence including launched design, position, samples and pinned data.
-- [x] Practice/Career distinction with once-only Mars attempts/results and scenario best.
-- [x] Reuse supplied Hubble/rocket/rover models with offline fallback.
-- [x] Correct NASA launcher instructions and separate Start-NASA launchers.
-- [x] Geometry reference-plane validation and within-interval interpolation.
-- [x] Current release documentation, asset inventory and audit review.
-- [x] 91 automated tests and Linux offline service startup check.
+| Suggested issue group | Register IDs |
+| --- | --- |
+| Independent ephemeris and GMAT validation | 1.4–1.5, 1.8, 3.4, 7.2, 8.2 |
+| Earth propagation, systems and flood data | 2.1–2.8, 3.1, 3.7–3.8 |
+| Mars descent, mobility, relay and terrain | 2.9–2.11, 3.6, 4.6–4.7 |
+| Asset rights and compliance | 4.1–4.5, 5.4, 7.1, 7.3–7.9 |
+| Browser, accessibility and release acceptance | 5.5–5.6, 6.6–6.12, 8.3–8.5 |
 
-## Scientific upgrade — open, in dependency order
-
-- [ ] Define reference frames, clocks, units, truth fixtures and tolerances.
-- [ ] Propagate Earth orbit/ground track and derive eclipse/contact/target geometry.
-- [ ] Integrate a pinned, attributed historical Lower Volta flood dataset.
-- [ ] Implement sourced SAR, pointing, power and communications models.
-- [ ] Add a sourced engineering catalogue with configuration-specific evidence.
-- [ ] Add Mars reconstructed geometry/terrain and separately validate gameplay dynamics.
-- [ ] Give applicable external data a documented mission-decision role.
-- [ ] Resolve visual asset rights and establish geographic/model correspondence.
-
-## Release acceptance — open
-
-- [ ] Browser visual and file export/import acceptance on current build.
-- [ ] Firefox/Safari and native Windows/macOS launcher tests.
-- [ ] Mobile acceptance and target-device disconnected first launch.
-- [ ] Profile FPS/memory on the user's hardware.
-- [ ] Select repository/license, publish source and attach a tagged release.
-- [ ] Implement lunar, asteroid and telescope systems only after the core scientific work.
-
-Detailed acceptance criteria and evidence are in AUDIT_REVIEW.md and VALIDATION.md.
+See [the fix register](AUDIT_REVIEW.md) for each criterion. AI assistance was used in code, tests, documentation and the demo. Earlier generated Earth and Mars illustrations are recorded in ASSET_PROVENANCE.md and excluded from the rendered game. Confirm the full development chronology and project eligibility with the organizers.

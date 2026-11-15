@@ -1,4 +1,4 @@
-# ORBITAL v0.3.1 extension guide
+# ORBITAL v0.3.3 extension guide
 
 ## Source boundaries
 
@@ -20,4 +20,8 @@ Earth saves reconstruct a run from inputs/history; Mars saves validate and resto
 
 ## Release
 
-Version in package.json and data/catalog.json must agree. Update current README/RELEASE/VALIDATION/GITHUB_PROGRESS/DATA_PROVENANCE documents rather than appending contradictory old summaries. Run both test suites, rebuild both HTML variants, package, verify checksums and inspect exported launchers. Preserve offline Play and optional Start-NASA separation.
+Version in package.json and data/catalog.json must agree. Update current README/RELEASE/VALIDATION/GITHUB_PROGRESS/DATA_PROVENANCE documents rather than appending contradictory old summaries. Run both test suites, rebuild both HTML variants, package, verify checksums and inspect exported launchers. Both Play and Start-NASA run the mandatory startup gate. The setup page ships separately from the loopback game.
+
+## Supplied scenes
+
+The four new reference HTMLs live in assets/models/references/. Regenerate their scene adapters with scripts/adapt_visual_models.py. Register scenes in src/model-viewer.js and use OrbitalInline.html in game views. src/scene-runtime.js scopes lifecycle and sizing; scene renderers must be disposed when hidden or removed. Original reference HTMLs contain CDN tags for provenance only; never load them as runtime iframes.

@@ -1,92 +1,129 @@
-# ORBITAL v0.3.1 — audit review and engineering backlog
+# ORBITAL v0.3.3 fix register
 
-Reviewed 14 November 2026 against the supplied **ORBITAL v0.2.3 Technical Audit Report** and the subsequent v0.3.0 implementation. v0.3.1 is a software-remediation release, not the scientific upgrade proposed by the audit. **All six critical scientific gaps remain open.** Passing game tests does not validate spacecraft engineering.
+15 November 2026. The numbered register contains **71 entries across eight workstreams**. The NASA key and data startup defect is addressed in this release. Status refers to implementation in v0.3.3. Automated tests use fixtures for external providers, so live NASA interoperability and independent scientific validation remain separate milestones.
 
-## Findings and disposition
+## Startup acceptance
 
-| Audit area | Current evidence | Disposition |
+| Case | Expected outcome | Evidence |
 | --- | --- | --- |
-| Fixed Earth orbital schedules; no ground track | Authored imaging, eclipse and downlink events still drive Earth gameplay. | **Open:** propagate an orbit and derive geometry. |
-| Unsourced hardware catalogue | Mass, power, cost and performance are authored game parameters. | **Open:** per-field sources and uncertainty, with illustrative values labelled separately. |
-| No real flood observations | Volta Basin objectives remain synthetic; UI now states this explicitly. | **Open:** integrate a dated, licensed observation and assessment fixture. |
-| Simplified SAR | Coverage/storage arithmetic exists; no physical resolution, swath, incidence or radiometric model. | **Open:** a bounded, sourced SAR model and reference cases. |
-| No link budget | Fixed rates and scheduled contacts remain. | **Open:** geometry, gain/loss, noise, margin and selected data-rate model. |
-| Incomplete power physics | Resource/battery rules exist; illumination, array attitude, temperature and efficiency are not independently validated. | **Open:** coupled generation/load/storage model. |
-| Earth attitude, atmosphere, weather, ascent and thermal omissions | No new scientific solver was added in this patch. | **Open:** define supported fidelity and validate each added model. |
-| Mars descent and navigation | Illustrative checkpoint interpolation and compressed visual altitude remain; no drag, parachute, powered landing or terrain-relative navigation solver. | **Open:** distinguish historical replay from simulated flight. |
-| Mars driving absent/insufficient | v0.3.0 already added keyboard kinematics, energy, slope and boundary handling. No wheel suspension, rock collision or validated soil traction exists. | **Partly outdated:** movement exists; physical rover dynamics remain open. |
-| Mars landscape and relay geometry | Supplied height field has no established geographic reference. Relay windows are authored schedules. | **Open:** sourced terrain and actual orbiter/site geometry. |
-| DONKI disconnected from physics | Latest-available reports are displayed and cached, without altering outcomes. | **Open by design:** add a justified operational decision before assigning effects. Arbitrary storm penalty multipliers would not fix this. |
-| Horizons nearest-sample jumps | v0.3.1 uses exact samples or time-bracketed cubic Hermite position/velocity interpolation. Range and ideal range/c are derived consistently. Wrong reference planes and vector tables are rejected; extrapolation remains prohibited. | **Fixed software behavior:** dense-reference accuracy and operational use remain unverified. |
-| Horizons insufficient for Mars operations | Earth–Mars vectors do not locate the chosen rover or a relay orbiter. | **Open:** mission-specific data, not merely more frequent Earth–Mars samples. |
-| NASA integration validates the catalogue | It does not. Imported context is separate from authored simulation settings. | **Open:** no NASA certification or validation claim. |
-| Model provenance and mechanical fit | Supplied Hubble/rocket/rover/terrain assets are illustrative; their original rights remain unresolved. Hubble is a visual stand-in for a radar mission. | **Recorded, not resolved:** see ASSET_PROVENANCE.md for hashes and missing provenance. |
-| Mars saves missing | v0.3.0 already persists designs, launched run, position, energy, samples, active task and pinned pack. | **Already corrected:** save/export validation remains covered by tests; browser file-dialog acceptance is pending. |
-| Mars progression missing | v0.3.1 adds optional Career, scenario-separated best-score credit, launch attempts and once-only success/failure settlement. Legacy Mars saves migrate to Practice. | **Fixed:** Practice intentionally earns no career credit. |
-| Configuration mostly predefined | Rover type, required tiers, add-ons, rocket and staging orbit are configurable; these choices still use authored tables. | **Partly corrected:** unrestricted engineering inputs and physical feasibility validation remain open. |
-| Four future missions unavailable | Earth and Mars now playable; lunar rover, asteroid and telescope remain planned. | **Update count to three:** finish core fidelity before expanding. |
-| Launcher instructions start wrong mode | Play scripts only open offline HTML. New Start-NASA scripts run the Python service; UI and documentation now name the right files. | **Fixed:** Linux startup verified; native Windows/macOS acceptance still pending. |
-| Conflicting release documents | Current README, release, validation, progress, provenance and extension guidance rewritten for v0.3.1. | **Fixed for this release:** maintain a single current status rather than accumulating contradictory appendices. |
-| Browser/platform/performance evidence missing | No new rendered-browser, Firefox/Safari, mobile, native Windows/macOS or target-device profiling results. | **Open verification gaps, not confirmed failures.** |
+| Missing, malformed, rejected or example key | Exit nonzero before starting the service or opening the browser | Linux entry-point and mocked provider tests |
+| Provider unreachable, incomplete or malformed output | Exit nonzero. A previous process's cache cannot unblock startup. | Launcher fixture tests |
+| Valid empty source interval | Accept a successful official response with zero events and display the count accurately | Launcher fixture test |
+| Direct HTML open | Show setup. Direct-open game code cannot unlock without a verified loopback response. | Packaged HTML checks and browser-code VM tests |
+| Verified session and upstream refresh failure | Retain a received snapshot for this session and label it stale | Launcher fixture test |
+| Key removed, changed or rejected after startup | Pause and lock at the next browser status check | Launcher and browser-code VM tests |
 
-## What v0.3.1 verifies
+## 1. Backend and application architecture
 
-The suite passes **91 tests: 62 Node and 29 Python**. New coverage checks interpolation against an independently calculated constant-acceleration trajectory; invalid frame/plane requests; Mars career launch and settlement, replay anti-farming, failure, abandonment and save migration; and a real local Linux NASA-service startup from a folder with spaces. The service test uses offline mode and does not establish live NASA ingestion.
+| ID | v0.3.3 status | Acceptance evidence or remaining acceptance test |
+| --- | --- | --- |
+| 1.1 | Partial | Validated DONKI reports inform a mandatory launch review and are recorded with the run. A calibrated model for physical effects needs independent test cases. |
+| 1.2 | Implemented | Launcher exposes bounded JPL acquisition under Data settings. New Mars flights require its verified pack. |
+| 1.3 | Implemented | Date, duration, vector frame, units and time scale are reproducible from the manifest and CLI. Rerun and compare vectors at all 25 epochs. |
+| 1.4 | Open | Acquire and attribute an actual reference pack with its raw-response digest and validity interval. Keep a reference fixture separate from startup authorization. |
+| 1.5 | Open | Fetch independent dense epochs and compare position, velocity and delay throughout at least three representative intervals. Report RMS and maximum error. |
+| 1.6 | Implemented | New runs carry distinct Earth and Mars model IDs. Readers preserve legacy rules and reject unsupported versions. |
+| 1.7 | Implemented for new runs | Save, restore and replay retain model, configuration and reviewed dataset identity. Mars stores the exact pack and checks a pending relay against it. |
+| 1.8 | Open | Add independently sourced spacecraft telemetry or simulation references with declared tolerances and reproducible loaders. |
 
-The current patch does not add a sourced starter pack or real flood dataset. Previous DONKI ingestion evidence is recorded in NASA_DATA.md and was not repeated here. Browser preview access was blocked, so visual acceptance remains unverified. Source-level scene tests use a stub renderer and must not be presented as screenshots, frame-rate measurements or browser acceptance.
+## 2. Mission logic and scientific engineering
 
-## Recommended engineering order and acceptance gates
+| ID | v0.3.3 status | Acceptance evidence or remaining acceptance test |
+| --- | --- | --- |
+| 2.1 | Open | Compare circular and eccentric propagated spacecraft states against reference trajectories at matching epochs and force assumptions. Derive operations from geometry. |
+| 2.2 | Open | Compare inertial-to-Earth-fixed coordinates and known sub-satellite points across wraparound, polar and equatorial cases. |
+| 2.3 | Open | Compare SAR resolution, swath and incidence behavior with a sourced radar mode. Verify radiometry, units and invalid pointing cases. |
+| 2.4 | Open | Match independent sunlit, eclipse and duty-cycle energy examples with panel attitude and battery losses. Check conservation and saturation. |
+| 2.5 | Partial | Horizons delay affects Mars delivery. Validate Earth contacts against independent station elevation and an RF link budget for a specified band and antenna. |
+| 2.6 | Open | Check field of view and slew limits against independent off-nadir and attitude maneuver cases. |
+| 2.7 | Open | Validate a subsystem thermal model against equilibrium and transient reference curves. State boundary conditions and limits. |
+| 2.8 | Open | Compare selected launcher, orbit and payload envelope against an attributed vehicle user guide and published curve. |
+| 2.9 | Open | Validate descent phases against reconstructed events and reference profiles with atmosphere, drag, parachute and powered-flight terms. |
+| 2.10 | Open | Compare slope, obstacle, wheel contact and traction cases against an independent model. Demonstrate no terrain penetration. |
+| 2.11 | Partial | Ideal Mars–Earth delivery delay is implemented. Validate pass access and occultation from an actual orbiter and landing site before replacing authored schedules. |
+| 2.12 | Partial | NASA reports, derived geometry and educational assumptions are identified in preflight, HUD and docs. Audit every displayed scientific field for consistent labels. |
+| 2.13 | Implemented by labeling | Earth assembly and flight identify Hubble as the illustrative stand-in. |
 
-These are proposed work items and acceptance criteria, not completed results. Keep each change independently reviewable and preserve existing save behavior.
+## 3. NASA data integration
 
-### 1. Establish a versioned scientific data contract
+| ID | v0.3.3 status | Acceptance evidence or remaining acceptance test |
+| --- | --- | --- |
+| 3.1 | Open | Select a dated Volta Basin flood product with documented rights, projection, resolution, coverage and no-data fields. Demonstrate a mission targeting or scoring change. |
+| 3.2 | Partial | DONKI informs go/no-go review. A Horizons-based arrival time changes relay feasibility and scoring. Validate the complete data-to-result path with live acquisitions. |
+| 3.3 | Implemented | New manifests identify cubic Hermite interpolation and no extrapolation. Exact sample epochs preserve source values. |
+| 3.4 | Open | Run the dense independent benchmark in 1.5. Analytic constant-acceleration tests verify the implementation. |
+| 3.5 | Implemented | New packs use a stable format ID. Historic v0.2.0 metadata is recognized only by the legacy reader. |
+| 3.6 | Partial | Mars delivery depends on range and receipt deadline. Orbital opportunities still require spacecraft/site geometry. |
+| 3.7 | Open | Trace each critical hardware value to an official specification or explicitly bounded assumption. Check units and applicability. |
+| 3.8 | Partial | Mars has a defined acquisition, decision and save pipeline for one quantity. Earth flood products and mission-specific spacecraft data remain open. |
 
-Record source URL, provider, product/version, acquisition time, observation epoch, units, coordinate frame, coverage interval, license, checksum, uncertainty and transformation history. Label each parameter as sourced, derived or assumed. Missing evidence must remain visible. Do not imply that a NASA data response certifies an unrelated game value.
+## 4. 3D assets and visualization
 
-Separate an illustrative learning model from any future sourced engineering model. Save the selected model version and pinned data pack with each mission. Online refresh downloads and validates a candidate pack atomically; it must not silently modify an active run. Offline mode uses its pinned validated pack. Show freshness and coverage independently: a recent download can contain historical observations. Label event reports as latest available, not real-time spacecraft telemetry.
+| ID | v0.3.3 status | Acceptance evidence or remaining acceptance test |
+| --- | --- | --- |
+| 4.1 | Partial | Asset inventory records supplied attachments and checksums. Confirm upstream provenance for every supplied original. |
+| 4.2 | Open | Obtain author, upstream URL, version, license and attribution for each asset. Retain documented permission where required. |
+| 4.3 | Open | Select official NASA models appropriate to the spacecraft and verify scale, source and rights. |
+| 4.4 | Open | Resolve source/rights or replace each unresolved asset before redistribution. |
+| 4.5 | Partial | Hubble and Mars terrain labels disclose the visual model. Audit labels for every assembly and mission view. |
+| 4.6 | Open | Adopt verified Mars elevation data with stated resolution, bounds, coordinate system and vertical datum. |
+| 4.7 | Open | Verify the selected landing site, geographic control points and rendered coordinates against a reference map. |
 
-**Acceptance:** reproducible offline run from exported data; invalid schema/frame/unit/hash rejected; interrupted refresh preserves the last good pack; stale and out-of-coverage data produce an explicit state; same inputs/model/pack yield the same outcome.
+## 5. Documentation
 
-### 2. Orbit, ground track, eclipse and contact geometry
+| ID | v0.3.3 status | Acceptance evidence or remaining acceptance test |
+| --- | --- | --- |
+| 5.1 | Partial | README has a challenge self-assessment with evidence and open status. Check it directly against the official challenge Resources tab when accessible. |
+| 5.2 | Implemented | NASA_DATA.md documents actual startup, review, geometry, delay and persistence. |
+| 5.3 | Partial | DATA_PROVENANCE.md records sources, units and limits for the new data path. Complete the field-level evidence for the engineering catalogue. |
+| 5.4 | Open | Resolve unknown sources and permissions in ASSET_PROVENANCE.md. |
+| 5.5 | Partial | VALIDATION.md includes startup and Mars delivery results. Rendered-browser and independent scientific benchmarks remain unverified. |
+| 5.6 | Open | Add the verified public repository URL, commit, release tag and issue IDs once published. The current worktree has no remote. |
+| 5.7 | Implemented | This register links measurable acceptance evidence or an outstanding test to each numbered item. |
+| 5.8 | Implemented | DONKI and Horizons requests now identify ORBITAL/0.3.3. |
 
-Begin with a documented Earth two-body model and explicit epoch, inertial frame and units. Derive Earth-fixed position using a specified time/frame transformation, then ground track, line of sight and eclipse. Add perturbations only with a defined purpose and validation. TLE-based operation requires an appropriate SGP4 implementation; arbitrary Kepler elements must not be passed off as a TLE solution.
+## 6. User experience and accessibility
 
-Use independent reference cases from [NASA GMAT](https://software.nasa.gov/software/GSC-19640-1); its [verification and validation report](https://ntrs.nasa.gov/citations/20140017798) illustrates why an independent comparison matters. Choose error tolerances before running comparisons and publish their rationale, force-model assumptions, epoch and duration. Numerical conservation checks alone are insufficient.
+| ID | v0.3.3 status | Acceptance evidence or remaining acceptance test |
+| --- | --- | --- |
+| 6.1 | Partial | Flight manual maps the four NASA mission segments to player actions. Verify beginner comprehension of remaining mission terms. |
+| 6.2 | Partial | Existing component changes update design totals. Add or validate immediate per-option deltas and opportunity costs for all subsystems. |
+| 6.3 | Partial | Verified reports, derived delay and illustrative hardware have labels. Check consistency across all pages, reports and tooltips. |
+| 6.4 | Partial | Earth report explains losses and Mars shows signal travel and delivery status. Verify causal debriefs in success and failure cases. |
+| 6.5 | Partial | Mars terrain and Hubble are labeled illustrative. Verify scale labeling across all scenes and telemetry. |
+| 6.6 | Open | Run complete launch/review/save/replay and scene checks on Firefox and Safari. |
+| 6.7 | Open | Run touch, keyboard alternatives and layout checks on at least one Android and one iOS device. |
+| 6.8 | Open | Run all dialogs and missions with keyboard only and a screen reader. Provide a playable equivalent to pointer/3D-only actions. |
+| 6.9 | Open | Measure contrast on overlays and modal states. Verify focus order, visible focus and focus restoration. |
+| 6.10 | Partial | Some model scenes respect reduced motion. Test OS behavior in all animated scenes and mission dashboards. |
+| 6.11 | Partial | Canvas rendering path is tested. Profile frame time and memory on named lower-performance hardware. |
+| 6.12 | Open | Observe learners completing Earth and Mars tasks and record whether they can explain the resulting trade-offs. |
 
-**Acceptance:** circular and eccentric orbit fixtures; meaningful ground-track, eclipse-boundary and station-contact cases; documented maximum position/time errors over the intended mission duration against the reference; outcomes change when orbital geometry changes. No precision claim until measured.
+## 7. Compliance, licensing and competition
 
-### 3. Real Lower Volta observation fixture
+| ID | v0.3.3 status | Acceptance evidence or remaining acceptance test |
+| --- | --- | --- |
+| 7.1 | Partial | NASA’s Design and Develop Science Missions guide informs the player manual. DONKI and Horizons are integrated. Confirm against the official challenge list and record the matching entries. |
+| 7.2 | Open | Run documented GMAT reference trajectories and verify qualification against the resource list. |
+| 7.3 | Open | Project owner selects a source license after reviewing rights and scope. Existing third-party license text ships with its dependency. |
+| 7.4 | Open | Identify and record the rights disposition for each original asset, generated image, source and project material. |
+| 7.5 | Open | Obtain redistribution permission or replace every supplied model whose terms cannot be established. |
+| 7.6 | Partial | Official API and mission-guide sources are cited. Complete hardware, geography and asset citations as sources are integrated. |
+| 7.7 | Partial | Release documents AI assistance and earlier generated Earth/Mars illustrations. The team must verify its complete disclosure before submission. |
+| 7.8 | Partial | Release chronology is recorded. Organizer confirmation of unresolved eligibility questions is pending. |
+| 7.9 | Open | Registered team verifies participant and submission requirements in the official portal. |
+| 7.10 | Implemented locally | The 24-second demo shows the startup gate and Mars delay with a labeled synthetic comparison. Submission remains a team step. |
 
-A relevant candidate is [UNITAR/UNOSAT product 3705](https://unosat.org/products/3705), which analyzes Sentinel-1 imagery acquired on 23 October 2023 over the Lower Volta area. This is an ESA Sentinel-1-derived UNOSAT analysis, not a NASA observation. UNOSAT labels the assessment preliminary and not field validated; treat it as a comparison product, not unquestioned ground truth. Confirm licensing and retain attribution before bundling it.
+## 8. Release and scientific acceptance
 
-[NASA HydroSAR classifications](https://science.data.nasa.gov/disasters/data-gallery/hydrosar-s1-classifications) are another relevant reference for flood mapping. That overview alone does not establish historical coverage for the chosen Ghana date. Check actual product availability before selecting it.
+| ID | v0.3.3 status | Acceptance evidence or remaining acceptance test |
+| --- | --- | --- |
+| 8.1 | Partial | Each item has an acceptance test or artifact. Agree numerical error tolerances and model fidelity targets before scientific validation. |
+| 8.2 | Open | Perform the orbital, ground-track and communication reference checks from 2.1, 2.2 and 2.5. |
+| 8.3 | Partial | Reproducible fixtures cover authentication, dataset validation and Mars reception. Rerun with credentials and official independent cases. |
+| 8.4 | Open | Complete the browser, OS, accessibility and performance matrix with reproducible evidence. |
+| 8.5 | Partial | v0.3.3 source, docs, release identity, hashes and existing third-party attribution are synchronized. Project and supplied-model rights remain open. |
 
-**Acceptance:** one downloadable, reproducible region/time fixture with CRS, resolution and no-data handling; visible observation date and uncertainty; a real change to mission targeting or evaluation; tests for partial coverage, clouds if optical data are used, and unavailable observations. Preserve synthetic scenarios as explicitly labelled lessons.
+## Sources
 
-### 4. Sourced hardware and coupled SAR, power and radio models
-
-Use mission-appropriate primary specifications and publications for every validated parameter. [NASA's Small Spacecraft Technology State of the Art](https://www.nasa.gov/smallsat-institute/sst-soa/) is a starting reference for subsystem choices, not a substitute for the selected hardware's specifications. Hubble imagery must not supply SAR engineering values.
-
-For SAR, define supported radar mode, frequency, geometry and assumptions before deriving resolution, swath and incidence limits. Link acquisition to pointing, imaging duration, storage and electrical loads. For radio, calculate slant range, visibility, antenna gain/pointing, path and equipment losses, noise and link margin; state the modulation/coding assumptions behind the chosen data rate. For power, connect eclipse/illumination and panel orientation to generation, subsystem duty cycles, charge/discharge efficiency, capacity and reserve constraints. Treat temperature and degradation explicitly or list their omission.
-
-**Acceptance:** unit-consistent equations with source citations; independently calculated golden examples; energy/data conservation; limit and failure tests; a player-visible tradeoff that changes delivered observations for a defensible reason. Environmental/DONKI effects require an evidenced model and applicability range before changing success probabilities.
-
-### 5. Mars replay, terrain and rover operations
-
-Keep historical reconstruction distinct from free-play flight simulation. [NASA NAIF's Mars 2020 SPICE archive documentation](https://naif.jpl.nasa.gov/pub/naif/pds/pds4/mars2020/mars2020_spice/document/spiceds_v001.html) describes reconstructed mission geometry. Select and record the relevant kernels, frames, time system and coverage; account for gaps. Do not transplant historical geometry into arbitrary user-designed vehicles and call the result a physical simulation.
-
-For simulated descent, specify atmosphere, drag, gravity, mass evolution, parachute and thruster models, integrator and transition conditions. For surface operations, choose georeferenced terrain with a known vertical datum/resolution and verified rover scale; implement collision and a bounded mobility model. Compute relay contacts from the landing site and an actual relay trajectory, including occultation and range.
-
-**Acceptance:** historical reference checks for replay; convergence and known-case tests for dynamics; no penetration/teleportation at terrain boundaries; reproducible energy/traction limits; contact windows compared with an independent geometry calculation. The current compressed display must retain an explicit visual-scale label until replaced.
-
-### 6. Platform, performance and release evidence
-
-Run a recorded OS/browser matrix for network-disconnected first launch, local saves and file export/import, missing/corrupt data, offline-to-online recovery, keyboard focus and scene switching. Native Windows and macOS launcher execution cannot be substituted by inspecting their text. Test Firefox and Safari separately. Decide whether mobile is supported before promising its controls.
-
-Measure frame times and memory on named hardware with a reproducible workload and defined memory metric. The audit's 60 FPS and 500 MB targets are currently unverified goals, not achieved constraints. Resolve model redistribution rights before public distribution; hashes establish identity, not permission.
-
-## Progress tracking
-
-The local checklist in GITHUB_PROGRESS.md can become repository issues in the same order. No GitHub issue, commit, pull request or remote update was created in this review; no linked repository was available in the working copy. Keep scientific acceptance evidence with each future implementation and update this audit status when the evidence exists.
-
-**Verdict:** the audit correctly identifies the project's main scientific weaknesses, but it mixes major new engineering work with several defects already corrected since v0.2.3. v0.3.1 resolves the confirmed release/functionality issues above. The next substantial milestone should be versioned data, orbital geometry and a real flood-observation fixture before more UI or mission expansion.
+[NASA Open APIs](https://api.nasa.gov/) · [JPL Horizons API](https://ssd-api.jpl.nasa.gov/doc/horizons.html) · [NASA Design and Develop Science Missions](https://ntrs.nasa.gov/citations/20250002492) · [NASA GMAT](https://software.nasa.gov/software/GSC-19640-1) · [UNOSAT Lower Volta comparison candidate](https://unosat.org/products/3705) · [Official Space Apps challenge](https://www.spaceappschallenge.org/2026/challenges/space-mission-design-game/)

@@ -54,9 +54,49 @@ const MarsMission = (() => {
   function launch(d,mode='practice',career=null){d=validate(d);if(checks(d).some(c=>!c.ok))throw Error('Mars preflight checks failed');if(!['practice','career'].includes(mode))throw Error('Invalid Mars mode');if(mode==='career'){if(!career||!Number.isInteger(career.attempts))throw Error('Missing career');career.attempts++;}const s=stats(d);return {manual:true,mode,committed:false,aborted:false,design:clone(d),t:0,visited:0,rocks:0,cores:0,relayed:false,task:null,events:['Atmospheric entry confirmed.'],position:{x:0,z:700,heading:0},energy:s.capacity,distance:0,samples:[],message:'Landing in progress.',dataPack:null};}
   function contacts(r){const s=stats(r.design);return [...s.orbit.relay,...(r.design.parts.antenna!==undefined?[[85,95]]:[])].sort((a,b)=>a[0]-b[0]);}
   const finished=r=>r.relayed||r.t>=deadline||!!r.aborted;
-  function actions(r){const s=stats(r.design),ready=r.t>=landing&&!finished(r)&&!r.task;const atSite=r.visited>=2&&Math.hypot(r.position.x-waypoints[r.visited-1].x,r.position.z-waypoints[r.visited-1].z)<7;return {sample:ready&&atSite&&r.rocks<r.visited-1&&r.samples.length<s.storage&&r.energy>=12,core:ready&&atSite&&r.design.parts.drill!==undefined&&!r.samples.includes('core-'+r.visited)&&r.samples.length<s.storage&&r.energy>=20,relay:ready&&r.visited===3&&r.rocks===2&&contacts(r).some(([a,b])=>r.t>=a&&r.t+s.upload<=b),drive:ready&&r.energy>2};}
-  function task(r,kind){if(!actions(r)[kind])return false;const s=stats(r.design),duration=kind==='sample'?s.analysis:kind==='core'?s.analysis+2:s.upload;if(r.t+duration>deadline)return false;r.task={kind,name:{sample:'Analyzing rock',core:'Drilling a core',relay:'Relaying results'}[kind],end:r.t+duration};if(kind==='sample')r.energy-=12;if(kind==='core')r.energy-=20;return true;}
-  function advance(r,to){if(finished(r))return;const target=Math.min(deadline,Math.max(r.t,to));r.energy=Math.min(stats(r.design).capacity,Math.max(0,r.energy+(stats(r.design).solar-stats(r.design).idle)*(target-r.t)/60));r.t=target;if(r.task&&r.t>=r.task.end){const task=r.task;r.task=null;if(task.kind==='sample'){r.rocks++;r.samples.push('rock-'+r.visited);}if(task.kind==='core'){r.cores++;r.samples.push('core-'+r.visited);}if(task.kind==='relay'){r.relayed=true;r.t=task.end;}r.events.push({sample:'Rock analysis saved.',core:'Subsurface core saved.',relay:'Science received on Earth.'}[task.kind]);r.message=r.events.at(-1);}}
+  function relayPlan(r, uploadMinutes=stats(r.design).upload){
+    const sentAt=r.t+uploadMinutes;
+    if(!contacts(r).some(([open,close])=>r.t>=open&&sentAt<=close))return null;
+    if(r.modelVersion!=='mars-1'){
+      return sentAt<=deadline ? {sentAt,end:sentAt,delaySeconds:0} : null;
+    }
+    if(!r.dataPack)return null;
+    const packs=typeof module==='object'?require('./data-packs.js'):OrbitalPacks;
+    const epoch=packs.epoch(r.dataPack.manifest.coverage.start)+sentAt*60000;
+    const geometry=packs.geometry(r.dataPack,epoch);
+    if(geometry.status!=='calculated')return null;
+    const end=sentAt+geometry.idealDelaySeconds/60;
+    return end<=deadline ? {sentAt,end,delaySeconds:geometry.idealDelaySeconds} : null;
+  }
+  function actions(r){
+    const design=stats(r.design),ready=r.t>=landing&&!finished(r)&&!r.task;
+    const atSite=r.visited>=2&&Math.hypot(r.position.x-waypoints[r.visited-1].x,r.position.z-waypoints[r.visited-1].z)<7;
+    return {
+      sample:ready&&atSite&&r.rocks<r.visited-1&&r.samples.length<design.storage&&r.energy>=12,
+      core:ready&&atSite&&r.design.parts.drill!==undefined&&!r.samples.includes('core-'+r.visited)&&r.samples.length<design.storage&&r.energy>=20,
+      relay:ready&&r.visited===3&&r.rocks===2&&Boolean(relayPlan(r,design.upload)),
+      drive:ready&&r.energy>2
+    };
+  }
+  function task(r,kind){
+    if(!actions(r)[kind])return false;
+    const design=stats(r.design);
+    if(kind==='relay'){
+      const plan=relayPlan(r,design.upload);
+      r.task={kind,name:'Relaying results to Earth',...plan};
+      if(r.modelVersion==='mars-1'){
+        r.task.startedAt=r.t;
+        r.message='Sending science. Estimated reception in '+(plan.end-r.t).toFixed(1)+' simulated minutes.';
+      }
+      return true;
+    }
+    const duration=kind==='sample'?design.analysis:design.analysis+2;
+    if(r.t+duration>deadline)return false;
+    r.task={kind,name:kind==='sample'?'Analyzing rock':'Drilling a core',end:r.t+duration};
+    r.energy-=kind==='sample'?12:20;
+    return true;
+  }
+  function advance(r,to){if(finished(r))return;const stopAt=r.task?.kind==='relay'?r.task.end:deadline;const target=Math.min(stopAt,deadline,Math.max(r.t,to));r.energy=Math.min(stats(r.design).capacity,Math.max(0,r.energy+(stats(r.design).solar-stats(r.design).idle)*(target-r.t)/60));r.t=target;if(r.task&&r.t>=r.task.end){const task=r.task;r.task=null;if(task.kind==='sample'){r.rocks++;r.samples.push('rock-'+r.visited);}if(task.kind==='core'){r.cores++;r.samples.push('core-'+r.visited);}if(task.kind==='relay'){r.relayed=true;r.t=task.end;}r.events.push({sample:'Rock analysis saved.',core:'Subsurface core saved.',relay:'Science received on Earth.'}[task.kind]);r.message=r.events.at(-1);}}
   function move(r,input,dt,height=()=>0){
     if(!r.manual||r.t<landing||finished(r)||r.task||!Number.isFinite(dt)||dt<=0)return false;
     dt=Math.min(.1,dt);const s=stats(r.design);if(input.brake||r.energy<=2){r.message=r.energy<=2?'Battery low. Wait for solar charging.':'Brakes applied.';return false;}
@@ -87,8 +127,18 @@ const MarsMission = (() => {
     if(!Array.isArray(r.samples)||r.samples.length>s.storage||r.samples.some(x=>!/^((rock|core)-[23])$/.test(x))||new Set(r.samples).size!==r.samples.length||r.samples.length!==r.rocks+r.cores)throw Error('Invalid Mars samples');
     if(!Array.isArray(r.events)||r.events.length>100||r.events.some(x=>typeof x!=='string'||x.length>300))throw Error('Invalid Mars events');
     if(r.task&&(!['sample','core','relay'].includes(r.task.kind)||!Number.isFinite(r.task.end)||r.task.end<r.t||r.task.end>deadline||typeof r.task.name!=='string'||r.task.name.length>100))throw Error('Invalid Mars task');
+    if(r.modelVersion==='mars-1'&&r.task?.kind==='relay'){
+      const packs=typeof module==='object'?require('./data-packs.js'):OrbitalPacks;
+      r.dataPack=packs.validate(r.dataPack);
+      const startedAt=r.task.startedAt;
+      if(!Number.isFinite(startedAt)||startedAt<landing||startedAt>r.t||r.visited!==3||r.rocks!==2)throw Error('Invalid saved relay start');
+      const plan=relayPlan({...r,t:startedAt});
+      if(!plan||['sentAt','end','delaySeconds'].some(key=>!Number.isFinite(r.task[key])||Math.abs(r.task[key]-plan[key])>1e-8)){
+        throw Error('Saved relay timing does not match its pinned geometry');
+      }
+    }
     return {...clone(r),design,message:typeof r.message==='string'?r.message.slice(0,300):'',position:{...r.position,heading:r.position.heading%(Math.PI*2)}};
   }
-  return {types,parts,rockets,orbits,waypoints,budget,deadline,landing,starter,validate,stats,checks,launch,actions,task,advance,move,contacts,finished,score,settle,restore};
+  return {types,parts,rockets,orbits,waypoints,budget,deadline,landing,starter,validate,stats,checks,launch,actions,task,advance,move,contacts,relayPlan,finished,score,settle,restore};
 })();
 if(typeof module!=='undefined')module.exports=MarsMission;

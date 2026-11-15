@@ -43,6 +43,7 @@ function modelCanvasRenderer(canvas) {
 
   function shade(material, geometry, ia, ib, ic, lighting) {
     let color = material.color.getHex();
+    let alpha = material.opacity;
     const vertexColors = geometry.attributes.color;
     if(material.vertexColors && vertexColors){
       const channel=k=>Math.round(255*(vertexColors.array[ia*3+k]+vertexColors.array[ib*3+k]+vertexColors.array[ic*3+k])/3);
@@ -58,9 +59,10 @@ function modelCanvasRenderer(canvas) {
       const y = Math.min(image.height - 1, Math.floor(image.height * (1 - (uv.getY(ia) + uv.getY(ib) + uv.getY(ic)) / 3)));
       const pixels = texturePixels.get(image), offset = (y * image.width + x) * 4;
       color = pixels[offset] * 65536 + pixels[offset + 1] * 256 + pixels[offset + 2];
+      if(material.transparent)alpha *= pixels[offset+3]/255;
     }
     const channel = value => Math.round(Math.min(255, value * lighting));
-    return `rgba(${channel(color >> 16)},${channel((color >> 8) & 255)},${channel(color & 255)},${material.opacity})`;
+    return `rgba(${channel(color >> 16)},${channel((color >> 8) & 255)},${channel(color & 255)},${alpha})`;
   }
 
   function drawFaces(node, points, faces) {
@@ -101,7 +103,7 @@ function modelCanvasRenderer(canvas) {
       const positions = node.geometry?.attributes.position;
       if (!positions) return;
       const points = project(node, positions);
-      if (node.isMesh) drawFaces(node, points, faces);
+      if (node.isMesh && node.material?.color) drawFaces(node, points, faces);
       if (node.isPoints) {
         context.fillStyle = '#b9c8e5';
         for (const p of points) if (p) context.fillRect(p[0], p[1], 1, 1);
@@ -135,5 +137,5 @@ function modelCanvasRenderer(canvas) {
     }
   }
 
-  return {setPixelRatio, setSize, render};
+  return {setPixelRatio, setSize, render, domElement:canvas, isCanvasFallback:true, shadowMap:{},setClearColor(){},dispose(){}};
 }

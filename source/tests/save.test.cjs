@@ -17,3 +17,16 @@ test('Mars menu navigation preserves mission progress and pauses playback',()=>{
 test('Mars setup progresses from type through parts, rocket and orbit; launch pins design and restores alongside Earth state',()=>{const c=context();assert.equal(vm.runInContext(`marsSetupAction('open');if(state.page!=='mars-type')throw Error('type page');marsSetupAction('type-scout');marsSetupAction('page-build');marsSetupAction('category-advanced');marsSetupAction('part-drill');marsSetupAction('tier-0');marsSetupAction('part-storage');marsSetupAction('tier-0');marsSetupAction('page-rocket');marsSetupAction('rocket-voyager');marsSetupAction('page-orbit');marsSetupAction('orbit-polar');if(!marsOrbitPage().includes('GO FOR LAUNCH'))throw Error('preflight');marsRun=MarsMission.launch(marsDesign);state.page='mars';MarsMission.advance(marsRun,marsLanding);marsRun.position.x=4;const snapshot=restore(serializable());snapshot.page==='mars'&&snapshot.marsSession.position.x===4&&snapshot.marsDesign.type==='scout'&&snapshot.marsSession.design.orbit==='polar'&&snapshot.marsDesign.parts.drill===0`,c),true);});
 test('new Mars UI surfaces omit automatic waypoint travel and expose manual controls',()=>{const c=context();assert.equal(vm.runInContext(`marsRun=MarsMission.launch(marsDesign);state.page='mars';const html=marsFlight();html.includes('Drive rover')&&html.includes('Analyze rock [X]')&&html.includes('Drill core [C]')&&!html.includes('Drive to next waypoint')`,c),true);});
 test('Mars career restore and render do not award completion twice',()=>{const c=context();assert.equal(vm.runInContext(`state.profile='Mars Pilot';state.mode='career';marsRun=MarsMission.launch(marsDesign,'career',state.career);MarsMission.advance(marsRun,marsLanding);marsRun.visited=3;marsRun.rocks=2;marsRun.samples=['rock-2','rock-3'];marsRun.relayed=true;render();const incoming=restore(serializable());state=incoming;marsRun=state.marsSession;marsDesign=state.marsDesign;render();state.career.attempts===1&&state.career.trust===10&&state.career.best['mars-survey-01']===100`,c),true);});
+test('new launch records the reviewed NASA dataset and preserves model version on import',()=>{
+  const c=context();
+  const feed={count:0,startDate:'2026-11-08',endDate:'2026-11-15',latest:null};
+  c.review={datasetId:'donki-'+'1'.repeat(64),adapterVersion:'donki-1',
+    retrievedAt:'2026-11-15T07:30:00Z',reviewedAt:'2026-11-15T07:31:00Z',
+    feeds:{flares:feed,storms:feed,cmes:feed}};
+  const result=vm.runInContext(`state.design.window=1;runStart(false,review);
+    const file=serializable();const clone=restore(file).run;
+    clone.modelVersion==='earth-1'&&clone.nasa.datasetId===review.datasetId&&
+      clone.initialDesign.window===1&&clone.nasa.feeds.cmes.count===0`,c);
+  assert.equal(result,true);
+  assert.throws(()=>vm.runInContext(`{const file=serializable();file.run.modelVersion='earth-99';restore(file);}`,c),/Unsupported mission model/);
+});

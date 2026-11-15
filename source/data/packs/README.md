@@ -1,5 +1,3 @@
-# Starter pack slot
+# NASA geometry packs
 
-`starter.json`, when supplied, is a validated version-1 Earth–Mars geometry pack from a successful documented Horizons request. The build validates and embeds it. No actual sourced starter is currently present: a real JPL User-Agent contact is required for the first live download. The game keeps its bundled authored scenario working and labels geometry as missing.
-
-Never copy `tests/fixtures/synthetic-pack.json` here. It contains invented test vectors and is not NASA data. Runtime downloads and the SQLite repository belong outside source; see `docs/NASA_DATA.md`.
+No runtime starter pack is bundled. The launcher fetches Earth–Mars vectors through NASA/JPL Horizons after NASA startup verification. See [NASA_DATA.md](../../docs/NASA_DATA.md) for the reproducible request and compatibility rules. Synthetic fixtures under tests are for automated checks.
