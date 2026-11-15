@@ -59,12 +59,97 @@ function totals(design){
  r.fuel=12;r.propulsion=P.propulsionDeltaV({dryMassKg:Math.max(1,r.mass-r.fuel),propellantKg:r.fuel,usedPropellantKg:D.propulsionModel?.deploymentPropellantKg??2,ispSeconds:D.propulsionModel?.ispSeconds??220});
  r.lead+=10;r.launchCost=D.rockets.find(x=>x.id===design.rocket).price;r.totalCost=r.cost+r.launchCost;return r;
 }
+const POLYGON_SLOT_SECONDS=30;
+const scheduleIdentities=new WeakMap();
+function scheduleIdentity(target){
+ let key=scheduleIdentities.get(target);
+ if(!key){
+  key=Flood.sha256(JSON.stringify([target.targetPoint,target.targetRadiusKm,target.cells]));
+  scheduleIdentities.set(target,key);
+ }
+ return key;
+}
+function polygonAccess(orbit, target, minOff, maxOff, slew, settle){
+ const earthKm=P.constants.earthRadius/1000;
+ const direction=({lat,lon})=>{
+  const a=lat*Math.PI/180,b=lon*Math.PI/180;
+  return [Math.cos(a)*Math.cos(b),Math.cos(a)*Math.sin(b),Math.sin(a)];
+ };
+ const center=direction(target.targetPoint),cells=target.cells.map(direction);
+ const slots=new Map(),access=[],count=new Uint16Array(cells.length),reachable=new Set();
+ let rawAccessCount=0,previousIndex=-2,leadEnd=0,window=null;
+ for(let sec=0,index=0;sec<D.scenario.deadline*60;sec+=POLYGON_SLOT_SECONDS,index++){
+  const state=P.propagateOrbit(orbit,sec);
+  const sat=state.positionEcefM.map(x=>x/1000),radius=Math.hypot(...sat),unit=sat.map(x=>x/radius);
+  const dot=vec=>unit[0]*vec[0]+unit[1]*vec[1]+unit[2]*vec[2];
+  const horizon=Math.acos(earthKm/radius);
+  if(dot(center)<Math.cos(horizon+target.targetRadiusKm/earthKm))continue;
+  let pick=-1,pickAngle=Infinity;
+  const candidates=[];
+  cells.forEach((cell,i)=>{
+   const cos=Math.max(-1,Math.min(1,dot(cell)));
+   if(cos<earthKm/radius)return; // below the local horizon
+   const angle=Math.atan2(earthKm*Math.sqrt(Math.max(0,1-cos*cos)),radius-earthKm*cos)*180/Math.PI;
+   if(angle<minOff||angle>maxOff)return;
+   candidates.push(i);
+   if(pick<0||count[i]<count[pick]||(count[i]===count[pick]&&angle<pickAngle)){pick=i;pickAngle=angle;}
+  });
+  if(pick<0)continue;
+  if(index!==previousIndex+1){
+   rawAccessCount++;
+   leadEnd=sec+pickAngle/slew+settle;
+   window=null;
+  }
+  previousIndex=index;
+  const endSeconds=Math.min(sec+POLYGON_SLOT_SECONDS,D.scenario.deadline*60),startSeconds=Math.max(sec,leadEnd);
+  if(endSeconds<=startSeconds)continue;
+  count[pick]++;
+  for(const i of candidates)reachable.add(i);
+  slots.set(index,{tile:pick,tileDuration:(endSeconds-startSeconds)/60,tileEnd:endSeconds/60});
+  if(!window){
+   window={startSeconds,endSeconds,startMinutes:startSeconds/60,endMinutes:endSeconds/60,settleTimeSeconds:settle};
+   access.push(window);
+  }else{
+   window.endSeconds=endSeconds;
+   window.endMinutes=endSeconds/60;
+  }
+  window.durationSeconds=window.endSeconds-window.startSeconds;
+  window.durationMinutes=window.durationSeconds/60;
+  window.midSeconds=(window.startSeconds+window.endSeconds)/2;
+ }
+ const reachableAreaKm2=[...reachable].reduce((sum,i)=>sum+target.cells[i].areaKm2,0);
+ return {access,slots,rawAccessCount,reachableAreaKm2};
+}
 function scheduleFor(design,targetRegion=null){
- const orbit=D.orbits.find(x=>x.id===design.orbit),tier=design.parts.adcs??0,target=targetRegion?.targetPoint||D.scenario.targetPoint,margin=targetRegion?.targetRadiusKm||0,key=design.orbit+':'+tier+':'+(targetRegion?.sourceFileSha256||'synthetic-scenario');
+ const orbit=D.orbits.find(x=>x.id===design.orbit),tier=design.parts.adcs??0;
+ const target=targetRegion?.targetPoint||D.scenario.targetPoint,margin=targetRegion?.targetRadiusKm||0;
+ // Imported checksums are self-asserted on saved profiles. Key the schedule by actual grid contents too.
+ const identity=targetRegion?scheduleIdentity(targetRegion):'synthetic-scenario';
+ const key=design.orbit+':'+tier+':'+identity;
  if(!scheduleCache.has(key)){
-  const a=D.adcsModel||{},maxOff=a.maximumOffNadirDeg?.[tier]??45,minOff=a.minimumOffNadirDeg??25,slewRate=a.slewRateDegPerSec?.[tier]??.5,settle=a.settleTimeSeconds??8,rawAccess=P.accessWindows(orbit,target,{durationMinutes:D.scenario.deadline,stepSeconds:30,minOffNadirDeg:minOff,maxOffNadirDeg:maxOff,swathMarginKm:margin}),access=[];
-  for(const w of rawAccess){const mid=(w.startSeconds+w.endSeconds)/2,pointing=P.pointingAssessment(orbit,target,mid,{currentOffNadirDeg:0,maxOffNadirDeg:maxOff,slewRateDegPerSec:slewRate}),lead=pointing.slewTimeSeconds+settle;if(lead<w.durationSeconds){const startSeconds=w.startSeconds+lead,endSeconds=w.endSeconds;access.push({...w,startSeconds,endSeconds,startMinutes:startSeconds/60,endMinutes:endSeconds/60,durationSeconds:endSeconds-startSeconds,durationMinutes:(endSeconds-startSeconds)/60,pointingSlewSeconds:pointing.slewTimeSeconds,settleTimeSeconds:settle});}}
-  const schedule={periodMinutes:P.orbitPeriodSeconds(orbit)/60,targetPoint:clone(target),targetRadiusKm:margin,targetSource:targetRegion?'UNOSAT product 3705 bounding circle':'synthetic training target',access,rawAccessCount:rawAccess.length,contacts:P.stationNetworkWindows(orbit,D.groundStations,{durationMinutes:D.scenario.deadline,stepSeconds:30,minElevationDeg:D.rfModel?.minimumElevationDeg??10}),eclipses:P.eclipseWindows(orbit,{durationMinutes:D.scenario.deadline,stepSeconds:30}),maxOffNadirDeg:maxOff,minOffNadirDeg:minOff,slewRateDegPerSec:slewRate};
+  const a=D.adcsModel||{},maxOff=a.maximumOffNadirDeg?.[tier]??45,minOff=a.minimumOffNadirDeg??25,slewRate=a.slewRateDegPerSec?.[tier]??.5,settle=a.settleTimeSeconds??8;
+  let coverageSchedule;
+  if(targetRegion?.cells){
+   coverageSchedule=polygonAccess(orbit,targetRegion,minOff,maxOff,slewRate,settle);
+  }else{
+   const raw=P.accessWindows(orbit,target,{durationMinutes:D.scenario.deadline,stepSeconds:30,minOffNadirDeg:minOff,maxOffNadirDeg:maxOff,swathMarginKm:margin});
+   const access=[];
+   for(const w of raw){
+    const mid=(w.startSeconds+w.endSeconds)/2;
+    const pointing=P.pointingAssessment(orbit,target,mid,{currentOffNadirDeg:0,maxOffNadirDeg:maxOff,slewRateDegPerSec:slewRate});
+    const lead=pointing.slewTimeSeconds+settle;
+    if(lead<w.durationSeconds){
+     const startSeconds=w.startSeconds+lead;
+     access.push({...w,startSeconds,startMinutes:startSeconds/60,durationSeconds:w.endSeconds-startSeconds,durationMinutes:(w.endSeconds-startSeconds)/60,pointingSlewSeconds:pointing.slewTimeSeconds,settleTimeSeconds:settle});
+    }
+   }
+   coverageSchedule={access,rawAccessCount:raw.length,slots:null,reachableAreaKm2:null};
+  }
+  const schedule={...coverageSchedule,periodMinutes:P.orbitPeriodSeconds(orbit)/60,targetPoint:clone(target),targetRadiusKm:margin,
+   targetSource:targetRegion?.cells?'user-supplied polygon scoring grid':targetRegion?'historic saved bounds, synthetic ledger':'synthetic training target',
+   contacts:P.stationNetworkWindows(orbit,D.groundStations,{durationMinutes:D.scenario.deadline,stepSeconds:30,minElevationDeg:D.rfModel?.minimumElevationDeg??10}),
+   eclipses:P.eclipseWindows(orbit,{durationMinutes:D.scenario.deadline,stepSeconds:30}),maxOffNadirDeg:maxOff,minOffNadirDeg:minOff,slewRateDegPerSec:slewRate};
+  if(scheduleCache.size>=12)scheduleCache.delete(scheduleCache.keys().next().value);
   scheduleCache.set(key,schedule);
  }
  return scheduleCache.get(key);
@@ -100,7 +185,7 @@ function preflight(design,career,targetRegion=null){
  {name:'Crew approval',ok:!design.crew.length||design.crew.every((_,i)=>design.approvals.includes(i)),detail:design.crew.length?design.approvals.length+' / '+design.crew.length+' roles approved':'Solo command'}
  ];
  const flood=targetRegion?(Flood||{}).validateProfile(targetRegion):null,geo=scheduleFor(design,flood),adcsTier=design.parts.adcs??0,slew=(D.adcsModel?.slewRateDegPerSec?.[adcsTier]??.5);
- checks.push({name:'Propagated SAR target access',ok:geo.access.length>0,detail:geo.access.length+' usable windows after '+(geo.rawAccessCount-geo.access.length)+' ADCS slew/settle exclusions · '+geo.minOffNadirDeg+'°–'+geo.maxOffNadirDeg+'° off-nadir envelope · '+geo.targetSource+(flood?' · '+flood.featureCount+' UNOSAT polygons, bounding-circle approximation':'' )});
+ checks.push({name:'Propagated SAR target access',ok:geo.access.length>0,detail:geo.access.length+' usable windows after '+(geo.rawAccessCount-geo.access.length)+' ADCS slew/settle exclusions · '+geo.minOffNadirDeg+'°–'+geo.maxOffNadirDeg+'° off-nadir envelope · '+geo.targetSource+(flood?.cells?' · '+flood.cells.length+' weighted cells':'' )});
  checks.push({name:'Ground-station visibility',ok:geo.contacts.length>0,detail:geo.contacts.length+' visibility windows across '+(D.groundStations||[]).length+' virtual training nodes · elevation threshold '+(D.rfModel?.minimumElevationDeg??10)+'°'});
  checks.push({name:'ADCS slew capability',ok:slew>0&&geo.access.length>0,detail:'Illustrative slew rate '+slew+'°/s plus '+(D.adcsModel?.settleTimeSeconds??8)+' s settle; wheel momentum, jitter and control-loop dynamics not modelled'});
  checks.push({name:'Thermal heater capacity',ok:t.thermalEstimate.heaterCapacitySufficient,detail:'Estimated '+t.thermalHeaterW.toFixed(1)+' W heater demand / '+(D.thermalModel?.heaterMaxW??160)+' W available'});
@@ -112,7 +197,7 @@ function start(design,career,mode='practice',targetRegion=null){
  const flood=targetRegion?(Flood||{}).validateProfile(targetRegion):null;
  const check=preflight(design,career,flood);if(!check.ok)return {error:'Preflight blocked',checks:check.checks};
  if(mode==='career')career.attempts++;
- const r={version:1,t:0,design:clone(design),initialDesign:clone(design),mode,targetRegion:flood?clone(flood):null,stats:totals(design),energy:totals(design).capacity,storage:0,queue:[],collected:Array(D.scenario.tiles).fill(0),delivered:Array(D.scenario.tiles).fill(0),events:[],trace:[],shed:false,safe:false,finished:false,committed:false,missedPower:0,missedStorage:0,changes:[],replayChanges:[],lastFlags:{},minEnergy:totals(design).capacity,maxStorage:0,fuel:10,temperatureK:D.thermalModel?.minimumTemperatureK??255,modelProvenance:{missionModelVersion:D.modelVersion,physicsModelVersion:D.physicsModelVersion||'orbital-physics-0.3.4',orbit:'two-body Kepler propagation',earthRotation:'GMST approximation',shadow:'cylindrical Earth shadow',sar:'range geometry only',rf:'free-space Shannon bound',power:'rated array with charge/discharge efficiencies',thermal:'single-node shaded radiator estimate',assumptionsVersion:D.physicsModelVersion||'orbital-physics-0.3.4'}};
+ const r={version:1,t:0,design:clone(design),initialDesign:clone(design),mode,targetRegion:flood?clone(flood):null,stats:totals(design),energy:totals(design).capacity,storage:0,queue:[],collected:Array(flood?.cells?.length??D.scenario.tiles).fill(0),delivered:Array(flood?.cells?.length??D.scenario.tiles).fill(0),events:[],trace:[],shed:false,safe:false,finished:false,committed:false,missedPower:0,missedStorage:0,changes:[],replayChanges:[],lastFlags:{},minEnergy:totals(design).capacity,maxStorage:0,fuel:10,temperatureK:D.thermalModel?.minimumTemperatureK??255,modelProvenance:{missionModelVersion:D.modelVersion,physicsModelVersion:D.physicsModelVersion||'orbital-physics-0.3.4',orbit:'two-body Kepler propagation',earthRotation:'GMST approximation',shadow:'cylindrical Earth shadow',sar:'range geometry only',rf:'free-space Shannon bound',power:'rated array with charge/discharge efficiencies',thermal:'single-node shaded radiator estimate',assumptionsVersion:D.physicsModelVersion||'orbital-physics-0.3.4'}};
  const initial=flags(r);r.lastFlags={eclipse:initial.eclipse,contact:initial.contact};
  log(r,'Launch and LEO injection confirmed.','pass');log(r,'Arrays deployed. Mission clock started.','pass');sample(r);return r;
 }
@@ -120,7 +205,9 @@ function log(r,message,type='info'){r.events.push({t:r.t,message,type});}
 function flags(r){
  const o=D.orbits.find(x=>x.id===r.design.orbit),geo=scheduleFor(r.design,r.targetRegion||null),cycle=Math.floor((r.t+EPS)/geo.periodMinutes),phase=r.t-cycle*geo.periodMinutes;
  const orbital=P.propagateOrbit(o,r.t*60),passWindow=windowAt(geo.access,r.t),contactWindow=windowAt(geo.contacts,r.t),eclipseWindow=windowAt(geo.eclipses,r.t),eclipse=!!eclipseWindow;
- const pass=passWindow?{...passWindow,total:geo.access.length}:null,tileInfo=pass?tileInPass(pass,r.t,D.scenario.tiles):null,tile=tileInfo?.tile??-1;
+ const pass=passWindow?{...passWindow,total:geo.access.length}:null;
+ const tileInfo=!pass?null:geo.slots?geo.slots.get(Math.floor((r.t*60+1e-7)/POLYGON_SLOT_SECONDS)):tileInPass(pass,r.t,D.scenario.tiles);
+ const tile=tileInfo?.tile??-1;
  const modeAllowed=!!pass&&(r.design.plan.imaging==='all'||(r.design.plan.imaging==='eclipse'&&eclipse)||(r.design.plan.imaging==='sunlit'&&!eclipse));
  const canImage=modeAllowed&&tile>=0&&!r.shed&&!r.safe,link=contactWindow&&r.design.plan.downlink&&!r.safe?activeLink(o,r.t,r.stats.downlink):null;
  const sensorOn=canImage,imaging=canImage,transmit=!!link;
@@ -135,7 +222,17 @@ function nextBoundaryFromFlags(r,f){
 }
 function nextBoundary(r){return nextBoundaryFromFlags(r,flags(r));}
 function sample(r){const f=flags(r);const point={t:r.t,energy:r.energy,storage:r.storage,returned:coverage(r),eclipse:f.eclipse,altitudeKm:f.orbital.altitudeM/1000,latitudeDeg:f.orbital.latitudeDeg,longitudeDeg:f.orbital.longitudeDeg,linkRateMbps:f.link?.usableRateMbps??0,groundElevationDeg:f.link?.elevationDeg??null,temperatureK:r.temperatureK??null};if(r.trace.length&&Math.abs(r.trace.at(-1).t-r.t)<EPS)r.trace[r.trace.length-1]=point;else r.trace.push(point);}
-function coverage(r){return r.delivered.reduce((a,b)=>a+b,0)/D.scenario.tiles*100;}
+function areaCoverage(r){
+ const target=r.targetRegion, cells=target?.cells;
+ if(!cells)return null;
+ const measure=ledger=>cells.reduce((sum,cell,i)=>sum+cell.areaKm2*clamp(ledger[i],0,1),0);
+ return {targetKm2:target.areaKm2,reachableKm2:scheduleFor(r.design,target).reachableAreaKm2,
+  imagedKm2:measure(r.collected),deliveredKm2:measure(r.delivered)};
+}
+function coverage(r){
+ const area=areaCoverage(r);
+ return area ? area.deliveredKm2/area.targetKm2*100 : r.delivered.reduce((a,b)=>a+b,0)/D.scenario.tiles*100;
+}
 function downlink(r,volume){while(volume>EPS&&r.queue.length){const p=r.queue[0],n=Math.min(volume,p.gb);r.delivered[p.tile]+=n/r.stats.dataPerTile;p.gb-=n;r.storage-=n;volume-=n;if(p.gb<EPS)r.queue.shift();}r.storage=Math.max(0,r.storage);}
 function sync(r){const f=flags(r),st=r.stats,reserve=D.scenario.reserve??20;
  if(f.eclipse!==r.lastFlags.eclipse){log(r,f.eclipse?'Earth-shadow entry · solar generation unavailable.':'Sunlight restored · solar arrays available at '+st.solarEffective.toFixed(1)+' W','pass');r.lastFlags.eclipse=f.eclipse;}
@@ -156,7 +253,7 @@ function step(r,until){
   if(end<=r.t+EPS){r.t=Math.min(until,r.t+1e-7);continue;}
   const dt=end-r.t;
   const downlinkCapacity=f.transmit?Math.min(st.downlink,f.link.rateGbPerMinute)*dt:0;
-  if(f.pass&&f.tile>=0){const possible=Math.min(dt/Math.max(f.tileDuration,EPS),1-r.collected[f.tile]);if(f.imaging){const room=Math.max(0,st.storage-r.storage+downlinkCapacity)/st.dataPerTile,capture=Math.min(possible,room);if(capture>EPS){r.collected[f.tile]+=capture;r.queue.push({tile:f.tile,gb:capture*st.dataPerTile});r.storage+=capture*st.dataPerTile;}r.missedStorage+=Math.max(0,possible-capture);}else if(f.canImage||r.shed||r.safe)r.missedPower+=possible;}
+  if(f.pass&&f.tile>=0){const weight=r.targetRegion?.cells?r.targetRegion.cells[f.tile].areaKm2/r.targetRegion.areaKm2*D.scenario.tiles:1;const possible=Math.min(dt/Math.max(f.tileDuration,EPS),1-r.collected[f.tile]);if(f.imaging){const room=Math.max(0,st.storage-r.storage+downlinkCapacity)/st.dataPerTile,capture=Math.min(possible,room);if(capture>EPS){r.collected[f.tile]+=capture;r.queue.push({tile:f.tile,gb:capture*st.dataPerTile});r.storage+=capture*st.dataPerTile;}r.missedStorage+=weight*Math.max(0,possible-capture);}else if(f.canImage||r.shed||r.safe)r.missedPower+=weight*possible;}
   if(downlinkCapacity>0)downlink(r,downlinkCapacity);
   const thermalResult=P.thermalStep({temperatureK:r.temperatureK??(thermal.minimumTemperatureK??255),internalHeatW:internalHeat,radiatorAreaM2:thermal.radiatorAreaM2??.4,emissivity:thermal.emissivity??.85,heatCapacityJK:thermal.heatCapacityJK??80000,seconds:dt*60,minTemperatureK:thermal.minimumTemperatureK??255,maxTemperatureK:thermal.maximumTemperatureK??310,heaterMaxW:thermal.heaterMaxW??160,heaterInputW:heater});
   const battery=P.batteryEnergyStep({energyWh:r.energy,solarW:generation,loadW:load,seconds:dt*60,chargeEfficiency:chargeEff,dischargeEfficiency:dischargeEff,capacityWh:st.capacity});
@@ -165,8 +262,8 @@ function step(r,until){
  sync(r);if(r.t>=D.scenario.deadline-EPS){r.finished=true;log(r,'72-hour science deadline reached.','info');}return r;
 }
 function changePlan(r,plan){r.design.plan=clone(plan);r.changes.push({t:r.t,plan:clone(plan)});log(r,'Operations updated · imaging '+plan.imaging+' · downlink '+(plan.downlink?'enabled':'disabled'));}
-function complete(r,career,abort=false){if(!r.finished&&!abort)step(r,D.scenario.deadline);if(abort){r.finished=true;r.aborted=true;log(r,'Mission ended early by commander.','warn');}const cov=coverage(r),ok=cov+EPS>=D.scenario.target&&!r.aborted,score=40+Math.floor(60*Math.min(1,cov/D.scenario.target)+EPS);let earned=r.earned||{credit:0,trust:0};if(r.mode==='career'&&!r.committed){if(!ok)career.failures++;earned=reward(career,score);r.earned=earned;r.committed=true;}return {ok,score,coverage:cov,earned,elapsed:r.t,minEnergy:r.minEnergy,maxStorage:r.maxStorage,undelivered:r.storage,missedPower:r.missedPower,missedStorage:r.missedStorage};}
+function complete(r,career,abort=false){if(!r.finished&&!abort)step(r,D.scenario.deadline);if(abort){r.finished=true;r.aborted=true;log(r,'Mission ended early by commander.','warn');}const cov=coverage(r),ok=cov+EPS>=D.scenario.target&&!r.aborted,score=40+Math.floor(60*Math.min(1,cov/D.scenario.target)+EPS);let earned=r.earned||{credit:0,trust:0};if(r.mode==='career'&&!r.committed){if(!ok)career.failures++;earned=reward(career,score,r.targetRegion?.cells?D.scenario.id+':polygon':D.scenario.id);r.earned=earned;r.committed=true;}return {ok,score,coverage:cov,area:areaCoverage(r),earned,elapsed:r.t,minEnergy:r.minEnergy,maxStorage:r.maxStorage,undelivered:r.storage,missedPower:r.missedPower,missedStorage:r.missedStorage};}
 function replay(r,career){const design=clone(r.initialDesign),n=start(design,career,r.mode,r.targetRegion||null);if(n.error)return n;n.replayChanges=clone(r.changes);pinContext(n,{dataPack:r.dataPack||null,missionContext:r.missionContext||null,targetRegion:r.targetRegion||null,provenance:r.provenance||null},false);return n;}
 function eclipseCheck(energy,base,imaging,duration,reserve=20){const threshold=Math.max(0,(energy-reserve)/(base+imaging)*60),active=Math.min(duration,threshold);return {shedAt:threshold<duration?threshold:null,remaining:Math.max(0,energy-(base+imaging)*active/60-base*(duration-active)/60)};}
-const api={configure,starter,totals,preflight,funding,weather,newCareer,reward,start,step,flags,nextBoundary,nextBoundaryFromFlags,coverage,complete,replay,changePlan,eclipseCheck,normalizeMissionContext,pinContext,clone};return api;
+const api={configure,starter,totals,preflight,funding,weather,newCareer,reward,start,step,flags,nextBoundary,nextBoundaryFromFlags,coverage,areaCoverage,complete,replay,changePlan,eclipseCheck,normalizeMissionContext,pinContext,clone};return api;
 });

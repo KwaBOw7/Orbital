@@ -1,4 +1,4 @@
-# ORBITAL Engineering Models (v0.3.4)
+# ORBITAL Engineering Models (v0.4.2)
 
 This document describes the calculations currently used by the Earth-observation and Mars training missions. These are deterministic educational models, not flight-dynamics, spacecraft qualification, remote-sensing processing or mission-assurance tools. Parameter values in `source/data/catalog.json` are instructional assumptions unless a source is explicitly identified.
 

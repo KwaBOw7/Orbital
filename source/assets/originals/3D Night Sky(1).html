@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Night Sky</title>
+<style>
+:root{color-scheme:dark;--bg:#02030a;--fg:#e6eaf4;--mut:#8691a8;--ln:#27334d;--ac:#8fb6ff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:15px/1.5 Georgia,"Times New Roman",serif;overflow:hidden}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#c:active{cursor:grabbing}
+header{position:fixed;left:20px;top:calc(env(safe-area-inset-top,0px) + 16px);pointer-events:none;text-shadow:0 0 6px #000}
+h1{margin:0;font-weight:400;font-size:30px}
+header p{margin:2px 0 0;color:var(--mut);font-size:14px}
+.lb{position:fixed;left:0;top:0;pointer-events:none;font-size:12px;color:#d3dbec;text-shadow:0 0 4px #000,0 0 2px #000;white-space:nowrap;display:none}
+.lb.k{color:#79a0e0;font-style:italic;letter-spacing:.08em;font-size:13px}
+.lb.d{color:#ecc27e;font-weight:bold;font-size:15px}
+nav{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 14px);display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 6px;padding:6px 8px;border:1px solid var(--ln);border-radius:22px;background:rgba(8,11,20,.8);backdrop-filter:blur(8px);width:max-content;max-width:calc(100% - 20px)}
+button{font:inherit;font-size:14px;color:var(--fg);background:none;border:0;border-radius:999px;padding:6px 12px;cursor:pointer;white-space:nowrap}
+button:hover{background:rgba(143,182,255,.13)}
+button[aria-pressed=true]{background:var(--ac);color:#06101f}
+button:focus-visible,input:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+label{font-size:13px;color:var(--mut);display:flex;align-items:center;gap:6px}
+input[type=range]{width:110px;accent-color:#8fb6ff}
+</style></head><body>
+<canvas id="c"></canvas>
+<header><h1>Night Sky</h1><p id="r1"></p><p id="r2"></p><p>Drag to look around, scroll to zoom.</p></header>
+<nav aria-label="Sky controls">
+<button id="bp" aria-pressed="false">Play</button>
+<button id="bc" aria-pressed="true">Constellations</button>
+<button id="bn" aria-pressed="true">Names</button>
+<button id="bg" aria-pressed="false">Grid</button>
+<button id="bh" aria-pressed="true">Horizon</button>
+<button id="bi" aria-label="Zoom in">+</button><button id="bo" aria-label="Zoom out">&minus;</button>
+<label>Time<input id="rt" type="range" min="0" max="24" step="0.02" value="3.7"></label>
+<label>Latitude<input id="rl" type="range" min="-90" max="90" value="20"></label>
+</nav>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// name,RA(hours),Dec(deg),mag,B-V  — leading "_" = unnamed in labels
+const ST=`Sirius,6.752,-16.72,-1.46,0
+Canopus,6.399,-52.70,-0.74,.15
+Arcturus,14.261,19.18,-0.05,1.23
+Rigil_Kent,14.660,-60.83,-0.01,.71
+Vega,18.616,38.78,0.03,0
+Capella,5.278,45.998,0.08,.8
+Rigel,5.242,-8.20,0.13,-.03
+Procyon,7.655,5.22,0.34,.42
+Betelgeuse,5.919,7.41,0.5,1.85
+Achernar,1.629,-57.24,0.46,-.16
+Hadar,14.064,-60.37,0.61,-.23
+Altair,19.846,8.87,0.76,.22
+Acrux,12.443,-63.10,0.76,-.24
+Aldebaran,4.599,16.51,0.86,1.54
+Antares,16.490,-26.43,0.96,1.83
+Spica,13.420,-11.16,0.97,-.24
+Pollux,7.755,28.03,1.14,1
+Fomalhaut,22.961,-29.62,1.16,.09
+Deneb,20.690,45.28,1.25,.09
+Mimosa,12.795,-59.69,1.25,-.23
+Regulus,10.140,11.97,1.35,-.11
+Adhara,6.977,-28.97,1.5,-.21
+Castor,7.577,31.89,1.58,.03
+Gacrux,12.519,-57.11,1.64,1.6
+Shaula,17.560,-37.10,1.63,-.22
+Bellatrix,5.419,6.35,1.64,-.22
+Elnath,5.438,28.61,1.65,-.13
+Alnilam,5.603,-1.20,1.69,-.18
+Alnitak,5.679,-1.94,1.77,-.21
+Mintaka,5.533,-0.30,2.23,-.22
+Saiph,5.796,-9.67,2.06,-.17
+Meissa,5.585,9.93,3.5,-.18
+Alioth,12.900,55.96,1.76,-.02
+Dubhe,11.062,61.75,1.79,1.06
+Mizar,13.399,54.93,2.23,.02
+Alkaid,13.792,49.31,1.86,-.19
+Merak,11.031,56.38,2.37,-.02
+Phecda,11.897,53.69,2.44,0
+Megrez,12.257,57.03,3.31,.08
+Polaris,2.530,89.26,1.98,.6
+Schedar,0.675,56.54,2.24,1.17
+Caph,0.153,59.15,2.27,.34
+_Gamma_Cas,0.945,60.72,2.47,-.15
+Ruchbah,1.430,60.24,2.68,.13
+Segin,1.907,63.67,3.38,-.15
+Sadr,20.370,40.26,2.23,.67
+Gienah,20.770,33.97,2.46,1.03
+Albireo,19.512,27.96,3.18,1.1
+_Delta_Cyg,19.750,45.13,2.87,-.12
+Sheliak,18.835,33.36,3.52,0
+Sulafat,18.982,32.69,3.25,-.05
+_Zeta_Lyr,18.746,37.6,4.3,.2
+_Delta_Lyr,18.908,36.90,4.2,1.1
+Denebola,11.818,14.57,2.14,.09
+Algieba,10.333,19.84,2.28,1.1
+Zosma,11.235,20.52,2.56,.13
+Chertan,11.237,15.43,3.3,0
+_Eta_Leo,10.122,16.76,3.5,0
+_Zeta_Leo,10.278,23.42,3.4,.3
+_Mu_Leo,9.879,26.0,3.9,1.2
+_Eps_Leo,9.764,23.77,3.0,.8
+Graffias,16.090,-19.81,2.6,-.07
+Dschubba,16.005,-22.62,2.3,-.12
+_Sigma_Sco,16.353,-25.59,2.9,.1
+_Tau_Sco,16.598,-28.22,2.8,-.2
+_Eps_Sco,16.836,-34.29,2.3,1.15
+_Mu_Sco,16.864,-38.05,3.0,-.2
+_Zeta_Sco,16.909,-42.36,3.6,0
+_Eta_Sco,17.203,-43.24,3.3,.4
+Sargas,17.622,-42.99,1.87,.4
+_Iota_Sco,17.793,-40.13,3.0,.5
+_Kappa_Sco,17.708,-39.03,2.4,-.2
+_Delta_Cru,12.252,-58.75,2.8,-.2
+_Zeta_Tau,5.627,21.14,3.0,-.2
+_Theta_Tau,4.478,15.87,3.4,1
+_Gamma_Tau,4.330,15.63,3.6,1
+Pleiades,3.791,24.11,2.87,-.09`;
+const CON={Orion:["Betelgeuse-Meissa-Bellatrix","Betelgeuse-Alnitak-Alnilam-Mintaka-Bellatrix","Alnitak-Saiph","Mintaka-Rigel"],
+"Ursa Major":["Dubhe-Merak-Phecda-Megrez-Dubhe","Megrez-Alioth-Mizar-Alkaid"],Cassiopeia:["Caph-Schedar-_Gamma_Cas-Ruchbah-Segin"],
+Cygnus:["Deneb-Sadr-Albireo","_Delta_Cyg-Sadr-Gienah"],Lyra:["Vega-_Zeta_Lyr-_Delta_Lyr-Sulafat-Sheliak-_Zeta_Lyr"],
+Scorpius:["Graffias-Dschubba-_Sigma_Sco-Antares-_Tau_Sco-_Eps_Sco-_Mu_Sco-_Zeta_Sco-_Eta_Sco-Sargas-_Iota_Sco-_Kappa_Sco-Shaula"],
+Crux:["Acrux-Gacrux","Mimosa-_Delta_Cru"],Leo:["Regulus-_Eta_Leo-Algieba-_Zeta_Leo-_Mu_Leo-_Eps_Leo","Algieba-Zosma-Denebola-Chertan-Zosma"],
+Taurus:["Elnath-Aldebaran","_Zeta_Tau-Aldebaran","Aldebaran-_Theta_Tau-_Gamma_Tau"],Gemini:["Castor-Pollux"],"Summer Triangle":["Vega-Deneb-Altair-Vega"]};
+const D2R=Math.PI/180,RAD=90;
+const eq=(ra,dec)=>{const a=ra*15*D2R,d=dec*D2R;return new THREE.Vector3(Math.cos(d)*Math.cos(a),Math.cos(d)*Math.sin(a),Math.sin(d))};
+const col=bv=>bv<-.1?[.65,.78,1]:bv<.2?[.85,.9,1]:bv<.5?[1,.97,.9]:bv<.8?[1,.92,.75]:bv<1.2?[1,.78,.5]:[1,.6,.4];
+const prop=m=>[Math.min(24,Math.max(1.3,3.4*Math.pow(1.42,3.6-m))),Math.min(1,Math.max(.22,.55+(3-m)*.2))];
+// noise for dust clumps
+const h3=(x,y,z)=>{const s=Math.sin(x*127.1+y*311.7+z*74.7)*43758.5453;return s-Math.floor(s)};
+const v3=(x,y,z)=>{const i=Math.floor(x),j=Math.floor(y),k=Math.floor(z),fx=x-i,fy=y-j,fz=z-k,u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy),w=fz*fz*(3-2*fz),L=(a,b,t)=>a+(b-a)*t;
+  return L(L(L(h3(i,j,k),h3(i+1,j,k),u),L(h3(i,j+1,k),h3(i+1,j+1,k),u),v),L(L(h3(i,j,k+1),h3(i+1,j,k+1),u),L(h3(i,j+1,k+1),h3(i+1,j+1,k+1),u),v),w)};
+const fb=(x,y,z)=>v3(x,y,z)*.65+v3(x*2.3,y*2.3,z*2.3)*.35;
+const AG=192.85948*D2R,DG=27.12825*D2R,T0=122.93192*D2R;
+function gal(v){const d=Math.asin(v.z),a=Math.atan2(v.y,v.x),sb=Math.sin(d)*Math.sin(DG)+Math.cos(d)*Math.cos(DG)*Math.cos(a-AG);
+  const l=T0-Math.atan2(Math.cos(d)*Math.sin(a-AG),Math.sin(d)*Math.cos(DG)-Math.cos(d)*Math.sin(DG)*Math.cos(a-AG));return [Math.asin(sb)/D2R,l]}
+const ru=()=>{const z=Math.random()*2-1,a=Math.random()*6.2832,s=Math.sqrt(1-z*z);return new THREE.Vector3(s*Math.cos(a),s*Math.sin(a),z)};
+
+const star=[],byName={},P=[],C=[],Z=[],A=[];
+const add=(v,c,m)=>{const [s,a]=prop(m);P.push(v.x*RAD,v.y*RAD,v.z*RAD);C.push(...c);Z.push(s);A.push(a)};
+for(const ln of ST.split('\n')){const [n,ra,de,m,bv]=ln.split(',');const v=eq(+ra,+de);byName[n]=v;add(v,col(+bv),+m);star.push({n,v,m:+m})}
+// Pleiades members
+for(let i=0;i<12;i++){const v=eq(3.79+(Math.random()-.5)*.36,24.1+(Math.random()-.5)*3.2);add(v,[.7,.82,1],4+Math.random()*1.6)}
+// background field stars, denser toward the galactic plane
+let n=0;while(n<8500){const v=ru(),b=gal(v)[0];if(Math.random()<.2+.8*Math.exp(-b*b/(2*16*16))){add(v,col(Math.random()*1.4-.2),3.2+3.4*Math.pow(Math.random(),.35));n++}}
+const mk=(P,C,Z,A,bl)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('col',new THREE.Float32BufferAttribute(C,3));
+  g.setAttribute('size',new THREE.Float32BufferAttribute(Z,1));g.setAttribute('a',new THREE.Float32BufferAttribute(A,1));return new THREE.Points(g,SM)};
+const US={value:1};
+const SM=new THREE.ShaderMaterial({uniforms:{uS:US},transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+  vertexShader:'attribute vec3 col;attribute float size,a;varying vec3 vC;varying float vA;uniform float uS;void main(){vC=col;vA=a;gl_PointSize=size*uS;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  fragmentShader:'varying vec3 vC;varying float vA;void main(){float d=length(gl_PointCoord-.5)*2.;if(d>1.)discard;float c=smoothstep(.55,0.,d),g=smoothstep(1.,0.,d);float i=(c*.9+g*g*.45)*vA;gl_FragColor=vec4(vC,i);}'});
+// Milky Way glow
+const MP=[],MC=[],MZ=[],MA=[];let q=0;
+while(q<30000){const v=ru(),[b,l]=gal(v),w=Math.exp(-b*b/(2*8*8))*(.35+.65*Math.pow(.5+.5*Math.cos(l),1.5)),nz=fb(v.x*3+9,v.y*3,v.z*3);
+  if(Math.random()<w*(.4+1.3*nz)){const k=Math.pow(.5+.5*Math.cos(l),2);MP.push(v.x*RAD,v.y*RAD,v.z*RAD);MC.push(.62+.38*k,.72+.2*k,1-.25*k);MZ.push(10+Math.random()*12);MA.push(.04+.09*w*(.5+nz));q++}}
+
+const R=new THREE.WebGLRenderer({canvas:document.getElementById('c'),antialias:true});
+R.setPixelRatio(Math.min(devicePixelRatio,2));R.setClearColor(0x02030a);
+const S=new THREE.Scene(),cam=new THREE.PerspectiveCamera(70,1,.1,300);cam.rotation.order='YXZ';
+const grp=new THREE.Group();S.add(grp);
+grp.add(mk(MP,MC,MZ,MA),mk(P,C,Z,A));
+// lines
+const lines=[],pos=[],cent=[];
+for(const [cn,paths] of Object.entries(CON)){const sum=new THREE.Vector3();let k=0;
+  for(const p of paths){const ns=p.split('-');for(let i=0;i<ns.length;i++){const v=byName[ns[i]];sum.add(v);k++;if(i)pos.push(byName[ns[i-1]].x*RAD,byName[ns[i-1]].y*RAD,byName[ns[i-1]].z*RAD,v.x*RAD,v.y*RAD,v.z*RAD)}}
+  cent.push([cn,sum.divideScalar(k).normalize()])}
+const mkL=(arr,c,o)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));return new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:c,transparent:true,opacity:o,depthWrite:false}))};
+const conL=mkL(pos,0x5f8fd8,.6);grp.add(conL);
+const gp=[];for(let dd=-60;dd<=60;dd+=30)for(let i=0;i<72;i++){const a=i*5*D2R,b=(i+1)*5*D2R,r=Math.cos(dd*D2R),z=Math.sin(dd*D2R);gp.push(RAD*r*Math.cos(a),RAD*r*Math.sin(a),RAD*z,RAD*r*Math.cos(b),RAD*r*Math.sin(b),RAD*z)}
+for(let hh=0;hh<24;hh+=2)for(let i=-18;i<18;i++){const a=hh*15*D2R,d1=i*5*D2R,d2=(i+1)*5*D2R;gp.push(RAD*Math.cos(d1)*Math.cos(a),RAD*Math.cos(d1)*Math.sin(a),RAD*Math.sin(d1),RAD*Math.cos(d2)*Math.cos(a),RAD*Math.cos(d2)*Math.sin(a),RAD*Math.sin(d2))}
+const eqL=[];for(let i=0;i<72;i++){const f=a=>[RAD*Math.cos(a),RAD*Math.sin(a),0];eqL.push(...f(i*5*D2R),...f((i+1)*5*D2R))}
+const ec=[],oe=23.44*D2R,ef=l=>[RAD*Math.cos(l),RAD*Math.sin(l)*Math.cos(oe),RAD*Math.sin(l)*Math.sin(oe)];for(let i=0;i<72;i++)ec.push(...ef(i*5*D2R),...ef((i+1)*5*D2R));
+const gridL=new THREE.Group();gridL.add(mkL(gp,0x3c5a96,.3),mkL(eqL,0x6a8fd0,.5),mkL(ec,0xd9b25a,.55));gridL.visible=false;grp.add(gridL);
+// ground
+const ground=new THREE.Mesh(new THREE.SphereGeometry(RAD-2,48,16,0,Math.PI*2,Math.PI/2,Math.PI/2),new THREE.MeshBasicMaterial({color:0x04060b,side:THREE.BackSide}));S.add(ground);
+const hl=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(Array.from({length:128},(_,i)=>new THREE.Vector3((RAD-2)*Math.cos(i/128*6.2832),0,(RAD-2)*Math.sin(i/128*6.2832)))),new THREE.LineBasicMaterial({color:0x3b4c70}));S.add(hl);
+// labels
+const labs=[],mkLb=(t,cls,v,type)=>{const e=document.createElement('div');e.className='lb '+cls;e.textContent=t;document.body.appendChild(e);labs.push({e,v:v.clone().multiplyScalar(RAD),type,fixed:type==='d'})};
+for(const s of star)if(s.n[0]!=='_'&&s.m<2.4)mkLb(s.n.replace(/_/g,' '),'',s.v,'n');
+for(const [cn,v] of cent)mkLb(cn.toUpperCase(),'k',v,'c');
+[['N',0,0,-1],['E',1,0,0],['S',0,0,1],['W',-1,0,0]].forEach(([t,x,y,z])=>mkLb(t,'d',new THREE.Vector3(x,y,z),'d'));
+const tmp=new THREE.Vector3(),on={c:true,n:true,h:true};
+
+// orientation
+const m4=new THREE.Matrix4(),mv=new THREE.Vector3(),wv=new THREE.Vector3(-1,0,0),c1=new THREE.Vector3(),c2=new THREE.Vector3(),c3=new THREE.Vector3();
+function orient(lst,lat){const L=lst*15*D2R,f=lat*D2R;mv.set(0,Math.cos(f),Math.sin(f));
+  c1.copy(mv).multiplyScalar(Math.cos(L)).addScaledVector(wv,Math.sin(L));c2.copy(mv).multiplyScalar(Math.sin(L)).addScaledVector(wv,-Math.cos(L));c3.set(0,Math.sin(f),-Math.cos(f));
+  m4.makeBasis(c1,c2,c3);grp.quaternion.setFromRotationMatrix(m4)}
+// ui
+const rt=document.getElementById('rt'),rl=document.getElementById('rl'),r1=document.getElementById('r1'),r2=document.getElementById('r2');
+let yaw=Math.PI,pitch=.5,fov=70,play=false,drag=null;
+function fit(){R.setSize(innerWidth,innerHeight,false);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();US.value=R.getPixelRatio()*Math.min(1.4,Math.max(.75,innerHeight/850))}
+addEventListener('resize',fit);fit();
+const cv=R.domElement;
+cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(!drag)return;const k=.0045*fov/70;yaw+=(e.clientX-drag.x)*k;pitch=Math.max(-1.55,Math.min(1.55,pitch+(e.clientY-drag.y)*k));drag={x:e.clientX,y:e.clientY}});
+cv.addEventListener('pointerup',()=>drag=null);
+const zoom=f=>{fov=Math.max(18,Math.min(100,fov*f));cam.fov=fov;cam.updateProjectionMatrix()};
+cv.addEventListener('wheel',e=>{e.preventDefault();zoom(1+e.deltaY*.001)},{passive:false});
+document.getElementById('bi').onclick=()=>zoom(.8);document.getElementById('bo').onclick=()=>zoom(1.25);
+const tg=(id,fn)=>{const b=document.getElementById(id);b.onclick=()=>{const v=b.getAttribute('aria-pressed')!=='true';b.setAttribute('aria-pressed',v);fn(v)}};
+tg('bp',v=>play=v);tg('bc',v=>{on.c=v;conL.visible=v});tg('bn',v=>on.n=v);tg('bg',v=>gridL.visible=v);tg('bh',v=>{on.h=v;ground.visible=v;hl.visible=v});
+const dirs=['N','NE','E','SE','S','SW','W','NW'],hm=t=>{const h=Math.floor(t),m=Math.floor((t-h)*60);return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')};
+(function loop(){requestAnimationFrame(loop);
+  if(play){rt.value=(+rt.value+.012)%24}
+  const lst=+rt.value,lat=+rl.value;orient(lst,lat);
+  cam.rotation.set(pitch,yaw,0);cam.updateMatrixWorld();
+  const az=((-yaw/D2R)%360+360)%360;
+  r1.textContent='Facing '+dirs[Math.round(az/45)%8]+' \u00b7 '+Math.round(pitch/D2R)+'\u00b0 above horizon';
+  r2.textContent='Latitude '+Math.abs(lat)+'\u00b0'+(lat>=0?'N':'S')+' \u00b7 sidereal time '+hm(lst);
+  for(const L of labs){let vis=(L.type==='c'?on.c:L.type==='n'?on.n:on.h);
+    if(vis){L.fixed?tmp.copy(L.v).multiplyScalar(.97):tmp.copy(L.v).applyQuaternion(grp.quaternion);
+      if(on.h&&!L.fixed&&tmp.y<-1)vis=false;
+      if(vis){tmp.project(cam);if(tmp.z>1||Math.abs(tmp.x)>1.05||Math.abs(tmp.y)>1.05)vis=false;
+        else{L.e.style.transform='translate('+((tmp.x*.5+.5)*innerWidth+(L.type==='d'?-6:8))+'px,'+((-tmp.y*.5+.5)*innerHeight-8)+'px)'}}}
+    L.e.style.display=vis?'block':'none'}
+  R.render(S,cam)})();
+</script></body></html>

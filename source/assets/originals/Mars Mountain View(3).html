@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mars Mountain View</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;600&display=swap">
+<style>
+:root{--ink:#fff;--panel:rgba(40,22,14,.62);--line:rgba(255,230,200,.35);--acc:#ffb26b;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--panel:rgba(24,12,8,.7)}}
+:root[data-theme="dark"]{--panel:rgba(24,12,8,.7)}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:#d9a574;color:var(--ink);font-family:"Barlow","Helvetica Neue",Arial,sans-serif;overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
+canvas:active{cursor:grabbing}
+#hud{position:fixed;left:24px;right:24px;top:calc(env(safe-area-inset-top,0px) + 20px);max-width:520px;pointer-events:none;text-shadow:0 1px 8px rgba(50,22,8,.75)}
+h1{margin:0 0 10px;font-size:40px;font-weight:300;line-height:1.05}
+#hud p{margin:0 0 4px;font-size:17px;line-height:1.4}
+#hud b{font-weight:600}
+#desc{font-weight:300;opacity:.92}
+#hint{font-size:14px;opacity:.8;margin-top:8px!important}
+nav{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 16px);display:flex;flex-wrap:wrap;justify-content:center;gap:8px;max-width:calc(100% - 24px);padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:14px;backdrop-filter:blur(8px)}
+button{font:inherit;font-size:17px;font-weight:400;color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:9px;padding:8px 14px;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none}
+button[aria-pressed="true"]{background:var(--acc);border-color:var(--acc);color:#2a1206}
+button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+<h1 id="t">Summit view</h1>
+<p><b id="alt">0</b> m above ground</p>
+<p>Elevation: <b id="elv">0</b> m</p>
+<p id="desc"></p>
+<p id="hint">Drag to look. W A S D or the buttons to move, Q and E for height.</p>
+</div>
+<nav>
+<button id="bSum">Summit</button>
+<button id="bVal">Valley floor</button>
+<button id="bAuto" aria-pressed="false">Auto flight</button>
+<button id="bHaze" aria-pressed="true">Dust haze</button>
+<button id="bF">Forward</button>
+<button id="bB">Back</button>
+</nav>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+var cv=document.getElementById('c');
+var R=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+R.setPixelRatio(Math.min(devicePixelRatio,2));R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;
+var S=new THREE.Scene(),HOR=new THREE.Color(.88,.66,.46);
+S.fog=new THREE.FogExp2(HOR,.0009);
+var cam=new THREE.PerspectiveCamera(62,1,.5,9000);cam.rotation.order='YXZ';
+
+// ---- noise + terrain height
+function sm(a,b,x){var t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t)}
+function hs(x,y){var s=Math.sin(x*127.1+y*311.7)*43758.5453;return s-Math.floor(s)}
+function vn(x,y){var xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;xf=xf*xf*(3-2*xf);yf=yf*yf*(3-2*yf);
+var a=hs(xi,yi),b=hs(xi+1,yi),c=hs(xi,yi+1),d=hs(xi+1,yi+1);return a+(b-a)*xf+(c-a)*yf+(a-b-c+d)*xf*yf}
+function fbm(x,y,o){var a=.5,s=0;for(var i=0;i<o;i++){s+=a*vn(x,y);x=x*2.07+17.3;y=y*2.07+9.1;a*=.5}return s/(1-Math.pow(.5,o))}
+function rg(x,y,o){var a=.5,s=0;for(var i=0;i<o;i++){var n=1-Math.abs(vn(x,y)*2-1);s+=a*n*n;x=x*2.07+17.3;y=y*2.07+9.1;a*=.5}return s/(1-Math.pow(.5,o))}
+var seed=11;function rnd(){seed=(seed+0x6D2B79F5)|0;var t=Math.imul(seed^(seed>>>15),1|seed);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296}
+var C=[];for(var i=0;i<70;i++)C.push([(rnd()-.5)*3400,(rnd()-.5)*3400,25+Math.pow(rnd(),2.5)*230]);
+function HT(x,z){
+var e=sm(2000,1500,Math.hypot(x,z)),m=sm(300,-750,z),r=rg(x*.0011+3,z*.0011+9,5);
+var h=m*(110+430*r*r)+(fbm(x*.0025+20,z*.0025+4,4)-.5)*60*(1-m*.4)+(fbm(x*.012,z*.03,3)-.5)*10*(1-m);
+for(var i=0;i<C.length;i++){var c=C[i],dx=x-c[0],dz=z-c[1],d2=dx*dx+dz*dz,rr=c[2];if(d2>4*rr*rr)continue;
+var q=Math.sqrt(d2)/rr;if(q<1)h-=.14*rr*(1-q*q);h+=.035*rr*Math.exp(-Math.pow((q-1)/.22,2))}
+return h*e}
+
+// ---- terrain mesh
+var G=new THREE.PlaneGeometry(4000,4000,400,400);G.rotateX(-Math.PI/2);
+var P=G.attributes.position;
+for(var i=0;i<P.count;i++)P.setY(i,HT(P.getX(i),P.getZ(i)));
+G.computeVertexNormals();
+var N=G.attributes.normal,col=new Float32Array(P.count*3);
+for(var i=0;i<P.count;i++){
+var x=P.getX(i),z=P.getZ(i),t=sm(.03,.3,1-N.getY(i)),dk=sm(.5,.65,fbm(x*.004+50,z*.004+8,3)),g=(vn(x*.15,z*.15)-.5)*.06;
+var dr=.80+g-.12*dk,dg=.50+g*.8-.1*dk,db=.29+g*.6-.07*dk;
+col[i*3]=dr+(.47-dr)*t;col[i*3+1]=dg+(.27-dg)*t;col[i*3+2]=db+(.17-db)*t}
+G.setAttribute('color',new THREE.BufferAttribute(col,3));
+var gc=document.createElement('canvas');gc.width=gc.height=256;var gx=gc.getContext('2d'),id=gx.createImageData(256,256);
+for(var i=0;i<65536;i++){var v=205+Math.random()*50;id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=v;id.data[i*4+3]=255}
+gx.putImageData(id,0,0);
+var gt=new THREE.CanvasTexture(gc);gt.wrapS=gt.wrapT=THREE.RepeatWrapping;gt.repeat.set(280,280);gt.anisotropy=4;
+var ter=new THREE.Mesh(G,new THREE.MeshStandardMaterial({vertexColors:true,map:gt,roughness:1,metalness:0}));
+ter.castShadow=ter.receiveShadow=true;S.add(ter);
+
+// ---- rocks
+var RN=2600,rocks=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,0),new THREE.MeshStandardMaterial({roughness:1,flatShading:true}),RN);
+var M4=new THREE.Matrix4(),Q=new THREE.Quaternion(),E=new THREE.Euler(),Vp=new THREE.Vector3(),Vs=new THREE.Vector3(),cc=new THREE.Color();
+for(var i=0;i<RN;i++){var x=(rnd()-.5)*2800,z=(rnd()-.5)*2800,s=.5+Math.pow(rnd(),3)*3.5;
+E.set(rnd()*6,rnd()*6,rnd()*6);Q.setFromEuler(E);Vp.set(x,HT(x,z)+s*.2,z);Vs.set(s,s*.7,s*.9);M4.compose(Vp,Q,Vs);
+rocks.setMatrixAt(i,M4);var b=.28+rnd()*.14;cc.setRGB(b*1.4,b*.85,b*.6);rocks.setColorAt(i,cc)}
+rocks.castShadow=rocks.receiveShadow=true;S.add(rocks);
+
+// ---- sky, sun, light
+var SD=new THREE.Vector3(.7,.5,.3).normalize();
+var sky=new THREE.Mesh(new THREE.SphereGeometry(4000,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,uniforms:{sd:{value:SD}},
+vertexShader:'varying vec3 v;void main(){v=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+fragmentShader:'varying vec3 v;uniform vec3 sd;void main(){vec3 d=normalize(v);float h=max(d.y,0.);vec3 c=mix(vec3(.88,.66,.46),vec3(.66,.45,.33),pow(h,.45));float s=max(dot(d,sd),0.);c+=vec3(1.,.82,.62)*pow(s,6.)*.28+vec3(.8,.9,1.)*pow(s,500.)*1.5;gl_FragColor=vec4(c,1.);}'}));
+sky.renderOrder=-1;sky.frustumCulled=false;S.add(sky);
+S.add(new THREE.HemisphereLight(0xf0c9a0,0x6a3a24,.5));
+var sun=new THREE.DirectionalLight(0xfff0dc,1.15);S.add(sun,sun.target);
+sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);var sc=sun.shadow.camera;sc.left=sc.bottom=-700;sc.right=sc.top=700;sc.near=1;sc.far=2400;
+sun.shadow.bias=-.0004;sun.shadow.normalBias=1;
+
+// ---- camera state and presets
+var pos=new THREE.Vector3(),yaw=Math.PI,pit=-.22,auto=false,best=-1e9,bx=0,bz=-800;
+for(var x=-900;x<=900;x+=30)for(var z=-1100;z<=-450;z+=30){var h=HT(x,z);if(h>best){best=h;bx=x;bz=z}}
+var tEl=document.getElementById('t'),dEl=document.getElementById('desc');
+var TXT={summit:['Summit view','Looking down from the highest ridge onto a dust plain. Airborne dust scatters sunlight into a butterscotch sky.'],
+valley:['Valley floor','On the plain, looking up at the range. Distant ridges fade into the haze.'],
+auto:['Auto flight','A slow low pass over the plain and range. Tap Summit or Valley floor to take control again.']};
+function label(k){tEl.textContent=TXT[k][0];dEl.textContent=TXT[k][1]}
+function setAuto(on){auto=on;var b=document.getElementById('bAuto');b.setAttribute('aria-pressed',on);if(on)label('auto')}
+function go(n){setAuto(false);if(n==='summit'){pos.set(bx,best+8,bz);yaw=Math.PI;pit=-.22}else{pos.set(0,HT(0,700)+3,700);yaw=0;pit=.1}label(n)}
+document.getElementById('bSum').onclick=function(){go('summit')};
+document.getElementById('bVal').onclick=function(){go('valley')};
+document.getElementById('bAuto').onclick=function(){setAuto(!auto)};
+document.getElementById('bHaze').onclick=function(){var b=this,on=b.getAttribute('aria-pressed')!=='true';b.setAttribute('aria-pressed',on);S.fog.density=on?.0009:.00035};
+
+// ---- input
+var keys={},hold={f:0,b:0},drag=false,lx=0,ly=0;
+addEventListener('keydown',function(e){keys[e.code]=true});addEventListener('keyup',function(e){keys[e.code]=false});
+function holdBtn(id,k){var b=document.getElementById(id);b.addEventListener('pointerdown',function(e){hold[k]=1;b.setPointerCapture(e.pointerId)});
+['pointerup','pointercancel'].forEach(function(t){b.addEventListener(t,function(){hold[k]=0})})}
+holdBtn('bF','f');holdBtn('bB','b');
+cv.addEventListener('pointerdown',function(e){drag=true;lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',function(e){if(!drag)return;yaw-=(e.clientX-lx)*.004;pit=Math.max(-1.45,Math.min(1.45,pit+(e.clientY-ly)*.004));lx=e.clientX;ly=e.clientY});
+cv.addEventListener('pointerup',function(){drag=false});
+cv.addEventListener('wheel',function(e){e.preventDefault();var cp=Math.cos(pit);pos.add(Vp.set(Math.sin(yaw)*cp,Math.sin(pit),-Math.cos(yaw)*cp).multiplyScalar(-e.deltaY*.5))},{passive:false});
+function size(){R.setSize(innerWidth,innerHeight,false);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
+addEventListener('resize',size);size();
+
+var clock=new THREE.Clock(),acc=0,altEl=document.getElementById('alt'),elvEl=document.getElementById('elv');
+go('summit');
+function loop(){
+var dt=Math.min(clock.getDelta(),.05),T=clock.elapsedTime,g=HT(pos.x,pos.z);
+if(auto){pit+=(-.18-pit)*dt;var rr=Math.hypot(pos.x,pos.z);
+if(rr>1200){var want=Math.atan2(-pos.x,pos.z),dy=((want-yaw+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;yaw+=dy*dt*.6}else yaw+=dt*.07;
+pos.x+=Math.sin(yaw)*45*dt;pos.z-=Math.cos(yaw)*45*dt;pos.y+=(g+110+30*Math.sin(T*.3)-pos.y)*dt*.8}
+else{var sp=(40+Math.min(300,Math.max(0,pos.y-g)*.4))*(keys.ShiftLeft?3:1),
+fw=(keys.KeyW||keys.ArrowUp||hold.f?1:0)-(keys.KeyS||keys.ArrowDown||hold.b?1:0),
+sd=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0),up=(keys.KeyE?1:0)-(keys.KeyQ?1:0),cp=Math.cos(pit);
+pos.addScaledVector(Vp.set(Math.sin(yaw)*cp,Math.sin(pit),-Math.cos(yaw)*cp),fw*sp*dt);
+pos.x+=Math.cos(yaw)*sd*sp*dt;pos.z+=Math.sin(yaw)*sd*sp*dt;pos.y+=up*sp*dt}
+pos.x=Math.max(-1900,Math.min(1900,pos.x));pos.z=Math.max(-1900,Math.min(1900,pos.z));
+g=HT(pos.x,pos.z);if(pos.y<g+2)pos.y=g+2;
+cam.position.copy(pos);cam.rotation.set(pit,-yaw,0);sky.position.copy(pos);
+var tx=Math.round(pos.x/25)*25,ty=Math.round(pos.y/25)*25,tz=Math.round(pos.z/25)*25;
+sun.target.position.set(tx,ty,tz);sun.position.set(tx+SD.x*900,ty+SD.y*900,tz+SD.z*900);
+acc+=dt;if(acc>.15){acc=0;altEl.textContent=Math.round(pos.y-g).toLocaleString();elvEl.textContent=Math.round(pos.y).toLocaleString()}
+R.render(S,cam);requestAnimationFrame(loop)}
+loop();
+})();
+</script>
+</body>
+</html>

@@ -14,9 +14,10 @@ const script = value => value.replace(/<\/script/gi, '<\\/script');
 const app = read('src/shell.html');
 const shared = {
   STYLE: read('src/style.css').replace('/*FLIGHT_IMAGES*/', '') + '\n' + read('src/data-style.css'),
-  DATA: script(`const ORBITAL_DATA = ${JSON.stringify(catalog)};`),
+  APP_VERSION: release.appVersion,
+  DATA: script(`const ORBITAL_DATA = ${JSON.stringify(catalog)};\nconst ORBITAL_RELEASE = ${JSON.stringify(release)};`),
   THREE: script(read('assets/vendor/three-r128.min.js')),
-  MODELS: script(['src/scene-runtime.js','assets/models/earth-texture.js','assets/models/earth.js','assets/models/moon.js','assets/models/lander.js','assets/models/mars-globe.js','assets/models/observatory.js','assets/models/sar.js','assets/models/rocket.js','src/model-canvas.js','src/model-viewer.js','src/inline-models.js'].map(read).join('\n')),
+  MODELS: script(['src/scene-runtime.js','src/model-canvas.js','assets/models/original-data.js','src/original-models.js','src/model-viewer.js','src/inline-models.js'].map(read).join('\n')),
   PACKS: script(read('src/data-packs.js')),
   FLOOD_DATA: script(read('src/flood-data.js')),
   DATA_UI: script(read('src/data-ui.js')),
@@ -28,6 +29,7 @@ const shared = {
   RENDERER: script(read('src/renderer.js')),
   FLIGHT: script(read('src/flight.js')),
   APP: script(read('src/app.js')),
+  ENHANCEMENTS: script(read('src/enhancements.js')),
 };
 function assemble(online) {
   const sources = {...shared, ONLINE_SCRIPT: online ? `<script>${script(read('src/online.js'))}</script>` : ''};

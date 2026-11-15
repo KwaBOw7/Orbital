@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """ORBITAL local launcher. API.txt opts in to NASA DONKI updates; --offline makes no provider requests."""
 import argparse
+import errno
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -24,7 +25,7 @@ UTC = timezone.utc
 try:
     RELEASE_INFO = json.loads((ROOT/'version.json').read_text(encoding='utf-8'))
     APP_VERSION = RELEASE_INFO['appVersion']
-    if not re.fullmatch(r'\d+\.\d+\.\d+', APP_VERSION):
+    if not re.fullmatch(r'[0-9]+(?:\.[0-9]+){2,3}', APP_VERSION):
         raise ValueError('Invalid release version')
 except (OSError, ValueError, KeyError, TypeError):
     raise RuntimeError('Missing or invalid version.json; restore the release manifest.') from None
@@ -57,6 +58,18 @@ def atomic_json(path, value):
             os.unlink(temp)
 
 
+class KeyConfigurationError(ValueError):
+    """Safe local key setup guidance."""
+
+
+class NasaAccessError(ValueError):
+    """NASA denied a request to a keyed endpoint."""
+
+
+class ModeControlError(ValueError):
+    """Safe explanation of why a local mode change is unavailable."""
+
+
 def read_key(path):
     try:
         key_path = Path(path)
@@ -67,10 +80,14 @@ def read_key(path):
                 pass  # Do not make offline/game startup depend on chmod support.
         with key_path.open('r', encoding='utf-8-sig') as stream:
             value = stream.read(257).strip()
+    except FileNotFoundError:
+        raise KeyConfigurationError('Save your NASA API key in API.txt beside launcher.py to enable updates.') from None
     except OSError:
-        raise ValueError('API.txt is missing. Save only your NASA API key in that file beside launcher.py.') from None
+        raise KeyConfigurationError('API.txt could not be read. Check its file permissions.') from None
+    except UnicodeError:
+        raise KeyConfigurationError('Save API.txt as a UTF-8 text file containing only your NASA API key.') from None
     if not re.fullmatch(r'[A-Za-z0-9_\-]{10,128}', value) or value == 'PASTE_YOUR_NASA_API_KEY_HERE':
-        raise ValueError('API.txt must contain only your NASA API key, without labels or quotes.')
+        raise KeyConfigurationError('API.txt must contain only your NASA API key, without labels or quotes.')
     return value
 
 
@@ -81,13 +98,16 @@ def epoch(value):
         t = datetime.fromisoformat(value.replace('Z', '+00:00'))
     except ValueError:
         raise ValueError('Invalid observation time') from None
-    return t.replace(tzinfo=UTC) if t.tzinfo is None else t.astimezone(UTC)
+    try:
+        return t.replace(tzinfo=UTC) if t.tzinfo is None else t.astimezone(UTC)
+    except OverflowError:
+        raise ValueError('Invalid observation time') from None
 
 
 def number(value, maximum):
     if value is None:
         return None
-    if isinstance(value, bool) or not isinstance(value, (float, int)) or not math.isfinite(value) or not 0 <= value <= maximum:
+    if isinstance(value, bool) or not isinstance(value, (float, int)) or not 0 <= value <= maximum:
         raise ValueError('Invalid NASA numeric field')
     return value
 
@@ -152,8 +172,8 @@ def download(name, key, start, end, cancelled, opener=urlopen):
             code = exc.code
             retry = exc.headers.get('Retry-After', '')
             exc.close()
-            if code in (401, 403):
-                raise ValueError('NASA rejected the key. Check API.txt and your NASA API access.') from None
+            if code in (401, 403) and name != 'flares':
+                raise NasaAccessError('NASA denied API access. Check the key in API.txt and your NASA account access.') from None
             if code not in (429, 500, 502, 503, 504) or attempt == 2:
                 raise ValueError(f'NASA returned HTTP {code}; previous reports retained.') from None
             try:
@@ -175,25 +195,57 @@ def download(name, key, start, end, cancelled, opener=urlopen):
     raise ValueError('NASA update failed; previous reports retained.')
 
 
+def cache_date(value):
+    if not isinstance(value, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
+        raise ValueError('Invalid cached query date')
+    return datetime.strptime(value, '%Y-%m-%d').date()
+
+
 def validate_cache(value):
-    if not isinstance(value, dict) or value.get('schemaVersion') != 1 or set(value.get('feeds', {})) != set(FEEDS):
+    if not isinstance(value, dict) or type(value.get('schemaVersion')) is not int or value['schemaVersion'] != 1:
         raise ValueError('Invalid report cache')
-    epoch(value['retrievedAt'])
-    for key, endpoint in FEEDS.items():
-        feed = value['feeds'][key]
-        if feed.get('endpoint') != PROVIDER_ENDPOINTS[key] or not isinstance(feed.get('items'), list) or len(feed['items']) > 2000:
+    feeds = value.get('feeds')
+    if not isinstance(feeds, dict) or set(feeds) != set(FEEDS):
+        raise ValueError('Invalid cached feed list')
+    retrieved = epoch(value.get('retrievedAt'))
+    clean_feeds = {}
+    for name in FEEDS:
+        feed = feeds[name]
+        if not isinstance(feed, dict) or feed.get('endpoint') != PROVIDER_ENDPOINTS[name]:
             raise ValueError('Invalid cached feed')
-        epoch(feed['startDate']+'T00:00:00Z')
-        epoch(feed['endDate']+'T00:00:00Z')
-        for row in feed['items']:
-            epoch(row['observedAt'])
-            if not isinstance(row.get('id'), str) or len(row['id']) > 200:
+        items = feed.get('items')
+        if not isinstance(items, list) or len(items) > 2000:
+            raise ValueError('Invalid cached event list')
+        start, end = cache_date(feed.get('startDate')), cache_date(feed.get('endDate'))
+        if start > end or (end-start).days > 30:
+            raise ValueError('Invalid cached query interval')
+        seen, clean_items = set(), []
+        for row in items:
+            if not isinstance(row, dict):
                 raise ValueError('Invalid cached event')
-            if key == 'storms': number(row.get('maxKp'), 9)
-            if key == 'cmes': number(row.get('speedKmS'), 10000)
-            if key == 'flares' and row.get('classType') is not None and not re.fullmatch(r'[ABCMX][0-9]+(?:\.[0-9]+)?', row['classType']):
-                raise ValueError('Invalid cached flare')
-    return value
+            ident = row.get('id')
+            if not isinstance(ident, str) or not 1 <= len(ident) <= 200 or ident in seen:
+                raise ValueError('Invalid or duplicate cached event ID')
+            seen.add(ident)
+            event = {'id': ident, 'observedAt': epoch(row.get('observedAt')).isoformat().replace('+00:00', 'Z')}
+            if name == 'storms':
+                event['maxKp'] = number(row.get('maxKp'), 9)
+            elif name == 'cmes':
+                event['speedKmS'] = number(row.get('speedKmS'), 10000)
+            else:
+                flare = row.get('classType')
+                if flare is not None and (not isinstance(flare, str) or not re.fullmatch(r'[ABCMX][0-9]{1,6}(?:\.[0-9]{1,6})?', flare)):
+                    raise ValueError('Invalid cached flare')
+                peak = row.get('peakTime')
+                event['classType'] = flare
+                event['peakTime'] = epoch(peak).isoformat().replace('+00:00', 'Z') if peak is not None else None
+            clean_items.append(event)
+        clean_feeds[name] = {'endpoint': PROVIDER_ENDPOINTS[name], 'startDate': start.isoformat(),
+                             'endDate': end.isoformat(), 'items': sorted(clean_items, key=lambda row: row['observedAt'], reverse=True)}
+    return {'schemaVersion': 1, 'retrievedAt': retrieved.isoformat().replace('+00:00', 'Z'),
+            'provider': 'NASA CCMC DONKI', 'documentation': 'https://api.nasa.gov/',
+            'adapterVersion': RELEASE_INFO['donkiAdapterVersion'],
+            'fieldStatus': 'Reported events; educational context only', 'feeds': clean_feeds}
 
 
 def mission_context(snapshot, status='missing'):
@@ -257,8 +309,10 @@ def mission_context(snapshot, status='missing'):
 
 
 class Reports:
-    def __init__(self, key_file, cache_dir, offline=False, fetcher=download):
+    def __init__(self, key_file, cache_dir, offline=False, fetcher=download, *, refresh_on_start=False):
         self.key_file, self.cache_dir, self.fetcher = Path(key_file), Path(cache_dir), fetcher
+        self.offline_only = offline
+        self.refresh_on_start = refresh_on_start
         self.cancelled, self.stop = threading.Event(), threading.Event()
         self.lock = threading.RLock()
         self.cached, self.error, self.busy, self.last_attempt = None, '', False, 0
@@ -268,22 +322,33 @@ class Reports:
                 raw = stream.read(3*MAX_BYTES+1)
             if len(raw) > 3*MAX_BYTES: raise ValueError('Oversized cache')
             self.cached = validate_cache(json.loads(raw))
-        except (OSError, ValueError, KeyError, TypeError):
+        except FileNotFoundError:
             pass
+        except (OSError, ValueError, RecursionError):
+            self.error = 'Stored NASA reports were unreadable or invalid and were ignored.'
+            print(self.error, file=sys.stderr)
         preference = None
         try: preference = json.loads((self.cache_dir/'mode.json').read_text()).get('mode')
         except (OSError, ValueError, AttributeError): pass
         if self.cached:
             age = max(0, (datetime.now(UTC)-epoch(self.cached['retrievedAt'])).total_seconds())
             self.last_attempt = max(0, time.monotonic()-age)
-        self.mode = 'offline' if offline or preference == 'offline' or not self.key_file.is_file() else 'online'
-        if self.mode == 'offline': self.cancelled.set()
+        self.mode = 'offline'
+        if not offline and (refresh_on_start or preference != 'offline'):
+            try:
+                read_key(self.key_file)
+            except KeyConfigurationError as exc:
+                self.error = str(exc)
+            else:
+                self.mode = 'online'
+        if self.mode == 'offline':
+            self.cancelled.set()
 
     def state(self):
         with self.lock:
             age = (datetime.now(UTC)-epoch(self.cached['retrievedAt'])).total_seconds() if self.cached else None
             status = 'offline' if self.mode == 'offline' else 'stale' if self.cached and (self.error or age > INTERVAL*2) else 'current' if self.cached else 'missing'
-            return {'mode': self.mode, 'status': status, 'busy': self.busy, 'error': self.error, 'keyFilePresent': self.key_file.is_file(), 'refreshSeconds': INTERVAL, 'utcNow': now_iso(), 'report': self.cached, 'missionContext': mission_context(self.cached, 'stale' if status == 'stale' else ('cached' if self.mode == 'offline' and self.cached else status))}
+            return {'mode': self.mode, 'status': status, 'busy': self.busy, 'error': self.error, 'keyFilePresent': self.key_file.is_file(), 'offlineOnly': self.offline_only, 'refreshSeconds': INTERVAL, 'utcNow': now_iso(), 'report': self.cached, 'missionContext': mission_context(self.cached, 'stale' if status == 'stale' else ('cached' if self.mode == 'offline' and self.cached else status))}
 
     def update(self):
         with self.lock:
@@ -296,7 +361,7 @@ class Reports:
             end = datetime.now(UTC).date()
             start = end-timedelta(days=7)
             feeds = {}
-            for name, endpoint in FEEDS.items():
+            for name in FEEDS:
                 items = self.fetcher(name, key, start.isoformat(), end.isoformat(), self.cancelled)
                 feeds[name] = {'endpoint': PROVIDER_ENDPOINTS[name], 'startDate': start.isoformat(), 'endDate': end.isoformat(), 'items': items}
             snapshot = validate_cache({'schemaVersion': 1, 'retrievedAt': now_iso(), 'provider': 'NASA CCMC DONKI', 'documentation': 'https://api.nasa.gov/', 'adapterVersion': 'donki-1', 'fieldStatus': 'Official reported events; educational context only', 'feeds': feeds})
@@ -304,11 +369,19 @@ class Reports:
                 if self.cancelled.is_set() or self.mode != 'online': return
                 atomic_json(self.cache_dir/'reports.json', snapshot)
                 self.cached, self.error = snapshot, ''
-        except ValueError as exc:
-            with self.lock: self.error = str(exc)
+        except (KeyConfigurationError, NasaAccessError) as exc:
+            with self.lock:
+                if self.mode == 'online':
+                    self.error = str(exc)
+        except ValueError:
+            with self.lock:
+                if self.mode == 'online':
+                    self.error = 'NASA refresh failed; previous reports retained.'
         except Exception:
             # Never expose raw exceptions: upstream URLs can contain the key.
-            with self.lock: self.error = 'Update failed; previous reports retained.'
+            with self.lock:
+                if self.mode == 'online':
+                    self.error = 'Update failed; previous reports retained.'
         finally:
             with self.lock: self.busy = False
 
@@ -319,14 +392,19 @@ class Reports:
                 self.mode = 'offline'
                 self.cancelled.set()
             else:
-                if not self.key_file.is_file(): raise ValueError('Save your NASA key in API.txt beside launcher.py, then retry.')
-                if mode == 'refresh' and time.monotonic()-self.last_attempt < 60:
-                    raise ValueError('Please wait one minute between manual updates; cached reports remain available.')
+                if self.offline_only:
+                    raise ModeControlError('This launch uses --offline. Restart with Play to enable NASA updates.')
+                read_key(self.key_file)
+                if mode == 'refresh' and self.last_attempt and time.monotonic()-self.last_attempt < 60:
+                    raise ModeControlError('Please wait one minute between manual updates; cached reports remain available.')
                 self.mode = 'online'
+                self.error = ''
             atomic_json(self.cache_dir/'mode.json', {'mode': self.mode})
         if mode != 'offline': threading.Thread(target=self.update, daemon=True).start()
 
     def schedule(self):
+        if self.refresh_on_start and not self.stop.is_set():
+            self.update()
         while not self.stop.is_set():
             if self.mode == 'online' and (not self.last_attempt or time.monotonic()-self.last_attempt >= INTERVAL): self.update()
             self.stop.wait(1)
@@ -370,8 +448,10 @@ def handler_for(reports, app_dir):
                 body = json.loads(self.rfile.read(length))
                 reports.control(body['mode'])
                 self.reply(reports.state())
+            except (KeyConfigurationError, ModeControlError) as exc:
+                self.reply({'error': str(exc)}, 400)
             except (ValueError, KeyError, TypeError):
-                self.reply({'error': 'Cannot change mode. Check API.txt; wait a minute before another refresh.'}, 400)
+                self.reply({'error': 'Invalid NASA mode request.'}, 400)
             except OSError: self.reply({'error': 'Could not save local mode preference.'}, 500)
 
         def log_message(self, *_): pass
@@ -380,30 +460,50 @@ def handler_for(reports, app_dir):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--port', type=int, default=8765)
+    parser.add_argument('--port', type=int, default=None, help='Local server port (default: 8765, or a free port if busy)')
     parser.add_argument('--key-file', type=Path, default=ROOT/'API.txt')
     parser.add_argument('--cache-dir', type=Path, default=Path.home()/'.local/share/orbital/nasa')
-    parser.add_argument('--offline', action='store_true')
+    parser.add_argument('--offline', action='store_true', help='Keep this session offline without NASA requests')
+    parser.add_argument('--refresh-on-start', action='store_true',
+                        help='Check API.txt and refresh NASA reports at startup, even with a recent cache')
     parser.add_argument('--no-browser', action='store_true')
     parser.add_argument('--refresh-only', action='store_true', help='Download/cache once without starting the browser/server')
     args = parser.parse_args()
-    reports = Reports(args.key_file, args.cache_dir, args.offline)
+    reports = Reports(args.key_file, args.cache_dir, args.offline, refresh_on_start=args.refresh_on_start)
     if args.refresh_only:
         reports.update()
         state = reports.state()
         print(json.dumps({'mode': state['mode'], 'status': state['status'], 'error': state['error'], 'retrievedAt': state['report']['retrievedAt'] if state['report'] else None, 'counts': {name: len(feed['items']) for name, feed in (state['report'] or {}).get('feeds', {}).items()}}))
         if state['mode'] != 'online':
-            print('NASA refresh was not attempted: enable online mode and provide API.txt. Offline gameplay remains available.', file=sys.stderr)
+            reason = state['error'] or 'NASA refresh was not attempted because this session is offline.'
+            print(f'{reason} Offline gameplay remains available.', file=sys.stderr)
             return 2
         return 1 if state['error'] else 0
     app_dir = ROOT if (ROOT/'online.html').is_file() else ROOT/'dist'
     if not (app_dir/'online.html').is_file(): parser.exit(1, 'Missing online.html. Extract the complete release or run node build.mjs in source/.\n')
-    try: server = ThreadingHTTPServer(('127.0.0.1', args.port), handler_for(reports, app_dir))
-    except OSError: parser.exit(1, 'Could not start local launcher. Try --port 8766.\n')
+    handler = handler_for(reports, app_dir)
+    port = 8765 if args.port is None else args.port
+    try:
+        server = ThreadingHTTPServer(('127.0.0.1', port), handler)
+    except OSError as exc:
+        if args.port is None and exc.errno == errno.EADDRINUSE:
+            print('Port 8765 is busy; choosing a free local port.', flush=True)
+            try:
+                server = ThreadingHTTPServer(('127.0.0.1', 0), handler)
+            except OSError as fallback:
+                parser.exit(1, f'Could not start local launcher: {fallback.strerror}.\n')
+        else:
+            parser.exit(1, f'Could not start local launcher on port {port}: {exc.strerror}. Try --port 0.\n')
+    first_status = reports.state()
     worker = threading.Thread(target=reports.schedule, daemon=True)
     worker.start()
     url = f'http://127.0.0.1:{server.server_port}'
-    print(f'ORBITAL: {url}\nNASA mode: {reports.mode}. API.txt stays private. Press Ctrl+C to stop.', flush=True)
+    print(f'ORBITAL v{APP_VERSION}: {url}', flush=True)
+    if first_status['mode'] == 'online' and args.refresh_on_start:
+        notice = 'NASA mode: online. Downloading DONKI reports in the background.'
+    else:
+        notice = first_status['error'] or f"NASA mode: {first_status['mode']}."
+    print(f'{notice} Press Ctrl+C to stop.', flush=True)
     if not args.no_browser: webbrowser.open(url)
     try: server.serve_forever()
     except KeyboardInterrupt: pass

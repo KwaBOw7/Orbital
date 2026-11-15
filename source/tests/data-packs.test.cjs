@@ -1,16 +1,39 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),crypto=require('node:crypto'),fs=require('node:fs'),vm=require('node:vm');
 const P=require('../src/data-packs.js');
+const release=require('../version.json');
 // Construct the same synthetic parser fixture as Python tests. Never bundled as NASA data.
 const fixture=require('./fixtures/synthetic-pack.json');
 const clone=x=>JSON.parse(JSON.stringify(x));
 test('browser checksum matches independent SHA-256 implementation',()=>{for(const s of ['', 'abc',fixture.data,'\u03c0'])assert.equal(P.sha256(s),crypto.createHash('sha256').update(s).digest('hex'));});
 test('Python pack and browser validator agree on units, range and ideal delay',()=>{const p=P.validate(fixture),g=P.geometry(p,p.manifest.coverage.start);assert.equal(g.rangeKm,50e6);assert.ok(Math.abs(g.idealDelaySeconds-166.78204759907604)<1e-10);assert.equal(g.status,'calculated');});
+test('generated app editions accept current and earlier Horizons packs',()=>{
+ const packs=['0.3.4','0.3.4.2',release.appVersion].map(version=>{
+  const pack=clone(fixture);
+  pack.manifest.applicationVersion=version;
+  pack.manifest.compatibleGameVersions=[version];
+  return pack;
+ });
+ for(const name of ['index.html','online.html']){
+  const html=fs.readFileSync('dist/'+name,'utf8');
+  assert.ok(html.includes('<title>ORBITAL v'+release.appVersion+' — Space Mission Design Game</title>'));
+  const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match=>match[1]);
+  const browser=vm.createContext({TextEncoder});
+  vm.runInContext(scripts.find(script=>script.includes('const ORBITAL_RELEASE = ')),browser);
+  vm.runInContext(scripts.find(script=>script.includes('function validate(pack)')),browser);
+  for(const pack of packs){
+   assert.equal(browser.OrbitalPacks.validate(pack).manifest.applicationVersion,pack.manifest.applicationVersion);
+  }
+  const mismatched=clone(packs.at(-1));
+  mismatched.manifest.compatibleGameVersions=['0.3.4'];
+  assert.throws(()=>browser.OrbitalPacks.validate(mismatched),/Unsupported pack format/);
+ }
+});
 test('no geometry extrapolation; interpolated epochs preserve bracket metadata',()=>{const p=P.validate(fixture),t=P.epoch(p.manifest.coverage.start);assert.equal(P.geometry(p,t-1).status,'outside');assert.equal(P.geometry(p,P.epoch(p.manifest.coverage.end)+1).status,'outside');const g=P.geometry(p,t+40*60000);assert.equal(g.epochUtc,'2026-11-14T00:40:00.000Z');assert.equal(g.sampleOffsetSeconds,0);assert.equal(g.method,'cubic-hermite');assert.deepEqual(g.bracketEpochs,['2026-11-14T00:00:00Z','2026-11-14T01:00:00Z']);assert.equal(g.requestedEpochUtc,'2026-11-14T00:40:00.000Z');});
 test('v0.3.3 Horizons packs migrate through the bounded legacy compatibility path',()=>{const p=clone(fixture);const m=p.manifest;m.adapterVersion='horizons-vector-1';for(const k of ['applicationVersion','compatibleGameVersions','datasetVersion','interpolationVersion'])delete m[k];assert.equal(P.validate(p).manifest.adapterVersion,'horizons-vector-1');m.adapterVersion='unrecognized-adapter';assert.throws(()=>P.validate(p),/Unsupported pack format/);});
 test('corrupt, incompatible, wrong-unit and executable asset imports rejected',()=>{for(const mutate of [p=>p.data+=' ',p=>p.manifest.schemaVersion=2,p=>p.manifest.rawUnits.position='au',p=>p.manifest.assets=[{file:'../../script.js'}],p=>p.manifest.timeScale='TDB']){const p=clone(fixture);mutate(p);assert.throws(()=>P.validate(p));}});
 test('null is unknown and cannot silently become zero',()=>{const p=clone(fixture),d=JSON.parse(p.data);d.samples[0].positionKm[0]=null;p.data=JSON.stringify(d);p.manifest.dataSha256=P.sha256(p.data);p.manifest.dataBytes=p.data.length;p.manifest.packId='mars-'+p.manifest.dataSha256.slice(0,16);assert.throws(()=>P.validate(p),/missing vector/);});
-function context(){const nodes={},fake=id=>nodes[id]??={innerHTML:'',addEventListener(){},classList:{add(){},remove(){}},open:false};let chosen=clone(fixture);const c={ORBITAL_DATA:require('../data/catalog.json'),MarsMission:require('../src/mars-engine.js'),OrbitalInline:{detach(){},attach(){},html(){return '';}},OrbitalEngine:require('../src/engine.js'),OrbitalPacks:P,OrbitalDataUI:{pin:()=>clone(chosen),targetRegion:()=>null,summary:()=>'',geometryPanel:()=>'',start(){}},document:{querySelector:fake,addEventListener(){}},localStorage:{getItem(){return null},setItem(){}},OrbitalView:{detach(){},attach(){}},OrbitalMars:{detach(){},attach(){},preview(){}},window:{addEventListener(){},scrollTo(){}},console,setTimeout,clearTimeout,setInterval,clearInterval};vm.createContext(c);vm.runInContext(fs.readFileSync('src/flight.js','utf8'),c);vm.runInContext(fs.readFileSync('src/mars-ui.js','utf8'),c);vm.runInContext(fs.readFileSync('src/app.js','utf8'),c);return {c,change:()=>{chosen=null;}};}
-test('Earth launch pins an exact pack; refresh, save restore and replay retain it',()=>{const {c,change}=context();vm.runInContext("state.design.window=1;runStart();",c);const initial=vm.runInContext('JSON.stringify(state.run.dataPack)',c);change();assert.equal(vm.runInContext('JSON.stringify(restore(serializable()).run.dataPack)',c),initial);vm.runInContext('E.step(state.run,4320);runStart(true)',c);assert.equal(vm.runInContext('JSON.stringify(state.run.dataPack)',c),initial);});
+function context(){const nodes={},fake=id=>nodes[id]??={innerHTML:'',addEventListener(){},classList:{add(){},remove(){}},open:false};let chosen=P.validate(fixture);const c={ORBITAL_DATA:require('../data/catalog.json'),MarsMission:require('../src/mars-engine.js'),OrbitalInline:{detach(){},attach(){},html(){return '';}},OrbitalEngine:require('../src/engine.js'),OrbitalPacks:P,OrbitalDataUI:{pin:()=>clone(chosen),targetRegion:()=>null,summary:()=>'',geometryPanel:()=>'',start(){}},document:{body:{dataset:{}},querySelector:fake,addEventListener(){}},localStorage:{getItem(){return null},setItem(){}},OrbitalView:{detach(){},attach(){}},OrbitalMars:{detach(){},attach(){},preview(){}},window:{addEventListener(){},scrollTo(){}},console,setTimeout,clearTimeout,setInterval,clearInterval};vm.createContext(c);vm.runInContext(fs.readFileSync('src/flight.js','utf8'),c);vm.runInContext(fs.readFileSync('src/mars-ui.js','utf8'),c);vm.runInContext(fs.readFileSync('src/app.js','utf8'),c);return {c,change:()=>{chosen=null;}};}
+test('Earth launch pins an exact pack; refresh, save restore and replay retain it',()=>{const {c,change}=context();vm.runInContext("state.design.window=1;runStart();",c);const initial=vm.runInContext('JSON.stringify(state.run.dataPack)',c);change();assert.equal(vm.runInContext('JSON.stringify(restore(serializable()).run.dataPack)',c),initial);assert.equal(vm.runInContext("{const saved=serializable();saved.run.provenance.applicationVersion='0.3.4';restore(saved).run.provenance.applicationVersion}",c),'0.3.4');vm.runInContext('E.step(state.run,4320);runStart(true)',c);assert.equal(vm.runInContext('JSON.stringify(state.run.dataPack)',c),initial);});
 test('legacy v1 Earth saves with no dataPack restore without selecting a newer pack',()=>{const {c}=context();assert.equal(vm.runInContext("state.design.window=1;state.run=E.start(state.design,state.career);let saved=serializable();delete saved.run.dataPack;restore(saved).run.dataPack===null",c),true);});
 test('Mars practice pins data and ordinary versus accelerated steps leave results identical',()=>{const {c,change}=context();vm.runInContext('marsRun=freshMars()',c);const id=vm.runInContext('marsRun.dataPack.manifest.packId',c);change();assert.equal(vm.runInContext('marsRun.dataPack.manifest.packId',c),id);assert.equal(vm.runInContext("state.design.window=1;let a=E.start(state.design,state.career),b=E.start(state.design,state.career);for(let t=1;t<4320;t++)E.step(a,t);E.step(a,4320);E.step(b,4320);Math.abs(E.coverage(a)-E.coverage(b))<1e-8&&Math.abs(a.energy-b.energy)<1e-8",c),true);});
 test('offline artifact retains CSP and contains no network primitives',()=>{const s=fs.readFileSync('dist/index.html','utf8');assert.ok(s.includes("connect-src 'none'"));const appCode=s.replace(/<!--THREE_START-->[\s\S]*?<!--THREE_END-->/,'');assert.ok(!/\bfetch\s*\(|new\s+(?:WebSocket|XMLHttpRequest)|<script[^>]*\bsrc=/.test(appCode));});
@@ -26,3 +49,8 @@ test('Hermite position and velocity reproduce an independent constant-accelerati
  const exact=P.geometry(pack,origin+3600000);assert.equal(exact.method,'sample');assert.deepEqual(exact.positionKm,data.samples[1].positionKm);
 });
 test('packs with ecliptic reference plane or wrong vector table cannot masquerade as frame-aligned state vectors',()=>{for(const [key,value] of [['REF_PLANE',"'ECLIPTIC'"],['VEC_TABLE',"'1'"]]){const p=clone(fixture);p.manifest.request[key]=value;assert.throws(()=>P.validate(p),/provenance/);}});
+test('self-asserted Horizons identity and matching checksum never validate provider provenance',()=>{
+ const raw=JSON.parse(require('node:fs').readFileSync('tests/fixtures/synthetic-pack.json','utf8'));
+ raw.manifest.provenanceStatus='provider-verified';
+ assert.equal(require('../src/data-packs.js').validate(raw).manifest.provenanceStatus,'provider-unverified');
+});

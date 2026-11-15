@@ -23,3 +23,30 @@ function orbitalSceneRuntime(view, renderer, canvas) {
   }
   return {width,height,frame,on,resize,track:scene=>(scenes.push(scene),scene),stop};
 }
+
+/* Move physical assemblies from their rest positions along model-space offsets. */
+function orbitalExplodedView(button, bind, layouts) {
+  const parts = layouts.map(([part, offset]) => ({
+    part,
+    rest: part.position.clone(),
+    offset: new THREE.Vector3(...offset),
+  }));
+  let exploded = false;
+  let spacing = 0;
+  if (button) bind(button, 'click', () => {
+    exploded = !exploded;
+    button.setAttribute('aria-pressed', String(exploded));
+  });
+  return () => {
+    const target = exploded ? 1 : 0;
+    const reduceMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const next = reduceMotion || Math.abs(target - spacing) < 0.001
+      ? target
+      : spacing + (target - spacing) * 0.18;
+    if (next !== spacing) {
+      spacing = next;
+      for (const {part, rest, offset} of parts) part.position.copy(rest).addScaledVector(offset, spacing);
+    }
+    return spacing;
+  };
+}

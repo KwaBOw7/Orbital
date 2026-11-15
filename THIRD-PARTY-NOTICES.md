@@ -1,4 +1,4 @@
-# Third-party notices — ORBITAL v0.3.4
+# Third-party notices — ORBITAL v0.4.2
 
 ## Three.js r128
 

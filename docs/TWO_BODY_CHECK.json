@@ -1,0 +1,25 @@
+{
+  "comparedEpochs": 181,
+  "positionErrorKm": {
+    "rms": 1.3578021147748652e-09,
+    "max": 2.480344213168267e-09
+  },
+  "velocityErrorKmS": {
+    "rms": 1.5556004735935224e-12,
+    "max": 3.000266701747023e-12
+  },
+  "frame": "EME2000",
+  "objectId": "ORBITAL_TEST",
+  "referenceSha256": "f2c678125b139db4d65d42edc73227b4d226419e765a99b1e61c18b07696bf10",
+  "candidateSha256": "c2e6d55ca6e45fdb9480222c02d50051d4148de8228bd5d1beee18325e7994b3",
+  "comparison": "Reference samples compared against linear interpolation of candidate samples. This is a numerical comparison, not a claim that either ephemeris is truth.",
+  "pass": true,
+  "reference": "Independent 1-second RK4 Earth point mass; synthetic, not GMAT",
+  "tolerances": {
+    "maxPositionKm": 0.001,
+    "maxVelocityKmS": 1e-06
+  },
+  "earthMuKm3S2": 398600.4418,
+  "referenceEpochUtc": "2026-11-14T00:00:00+00:00",
+  "gmatScriptSha256": "a6e1637881fbe99fc0765fcb9d412b76225b042f6f6336dbc4a11098d8ac1acb"
+}

@@ -1,6 +1,6 @@
-# ORBITAL v0.3.4 — Remediation and remaining audit register
+# ORBITAL v0.3.4.2 — Remediation and remaining audit register
 
-15 November 2026. This register reflects the code and docs in the v0.3.4 working release, not earlier v0.3.3 observations. It separates software changes completed here from external acceptance gates that cannot be settled by editing the archive.
+15 November 2026. This register reflects the code and docs in the v0.3.4.2 working release, not earlier v0.3.3 observations. It separates software changes completed here from external acceptance gates that cannot be settled by editing the archive.
 
 ## Fixes implemented in this release
 
@@ -16,7 +16,7 @@
 | Procedural visuals | Replaced supplied/adapted Hubble, rocket, rover, terrain, Earth and Mars visual files with freshly authored procedural scene code. | All scenes explicitly illustrative; no NASA/vendor model or geographic elevation claim. Three.js remains MIT-licensed. |
 | Project licensing | Added root Apache-2.0 license scoped to original project code/docs/procedural illustrations and included Three.js MIT notice. | Owner/contributor rights and team-wide licensing scope must still be verified before publication. |
 | AI disclosure | Added `AI_USAGE_DISCLOSURE.md` documenting assistance in this remediation. | Team must add all AI use by all contributors and mark any AI-generated submission media per official rules. |
-| Flood-data workflow | Added a `.prj`-aware shapefile-to-WGS84 GeoJSON preparation tool plus in-app local GeoJSON import; source hash and dataset identity flow into target-access geometry and mission save/replay. | No actual UNOSAT product file is bundled and official reuse rights are not confirmed; target access uses a bounding-circle approximation and mission scoring still uses a synthetic 720-cell ledger. |
+| Flood-data workflow | Added a `.prj`-aware shapefile-to-WGS84 GeoJSON preparation tool plus in-app local GeoJSON import; source hash and dataset identity flow into target-access geometry and mission save/replay. | The original UNOSAT data and rights confirmation must be obtained separately. Imported polygons use sampled weighted area for access and scoring. |
 | GMAT reference workflow | Added GMAT reference script and CCSDS OEM validator/comparison CLI. | GMAT is not installed/run here; no OEM output bundled, and challenge-resource qualification must be confirmed by organizers. |
 | Asset rights | Removed earlier unverified attachment-derived geometry and generated static image files; current scene modules are procedural illustrations, and bundled Three.js has its MIT notice. | New external datasets/assets must be independently rights-cleared before inclusion. |
 
@@ -24,7 +24,7 @@
 
 1. Acquire authentic JPL Horizons packs and compare against a separate, independent high-precision ephemeris source over multiple epochs. The current same-provider dense-cadence benchmark is not independent validation.
 2. Run NASA GMAT and preserve an OEM output plus its version, force model, input state and SHA-256. Compare the application's orbit state against the same model/epoch with declared tolerances. GMAT execution has not been performed in this environment.
-3. Obtain the official product and confirm reuse rights. The local importer now pins its target footprint and uses a bounding-circle approximation to alter derived access windows; the mission's 720-tile coverage ledger and scoring remain synthetic, and pixel/raster flood scoring is not implemented.
+3. Obtain the official product, confirm reuse rights and benchmark the sampled polygon-access and delivered-area estimates against that product.
 4. Source and validate hardware parameters (SAR waveform/radiometry, antenna pattern, RF band/rate, panel/battery, thermal, ADCS, launch vehicle) against official manuals/datasheets; current values are educational assumptions.
 5. Validate Mars EDL, relay and rover outputs against an authoritative flown mission dataset or accepted reference simulator.
 6. Complete rendered-browser tests in Chromium, Firefox and Safari (headless Chromium smoke was blocked by execution-environment policy); native Windows/macOS/Android/iOS acceptance; screen-reader, keyboard-only and contrast checks; reduced-motion behavior; performance/memory profiling on named target hardware.

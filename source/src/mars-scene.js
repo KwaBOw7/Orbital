@@ -3,42 +3,28 @@
 const OrbitalMars = (() => {
   let stop = null;
   let view = {yaw:0.75, pitch:0.22, distance:24};
-  let roverGeometry;
-  function geometry() {
-    // Original schematic chassis geometry; no user-supplied or third-party rover mesh is bundled.
-    roverGeometry ??= new THREE.BoxGeometry(2.2,.55,1.45);
-    return roverGeometry.clone();
+  function vehicle(design, assemblies) {
+    return OrbitalOriginal.rover();
   }
-  function vehicle(design) {
-    const cfg=design||MarsMission.starter(),stats=MarsMission.stats(cfg),group=new THREE.Group();
-    const body=new THREE.Mesh(geometry(),new THREE.MeshStandardMaterial({color:stats.type.color,metalness:.3,roughness:.65,side:THREE.DoubleSide}));body.position.y=.92;group.add(body);
-    // Six original procedural wheels and simple suspension arms make the vehicle legible without an unlicensed STL.
-    const wheelMat=new THREE.MeshStandardMaterial({color:0x333a42,metalness:.18,roughness:.88}),hubMat=new THREE.MeshStandardMaterial({color:0xb5a07b,metalness:.55,roughness:.5});
-    for(const x of [-.82,0,.82])for(const side of [-1,1]){
-      const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.18,20),wheelMat);wheel.rotation.x=Math.PI/2;wheel.position.set(x,.42,side*.83);group.add(wheel);
-      const hub=new THREE.Mesh(new THREE.CylinderGeometry(.13,.13,.2,12),hubMat);hub.rotation.x=Math.PI/2;hub.position.copy(wheel.position);group.add(hub);
-      const arm=new THREE.Mesh(new THREE.BoxGeometry(.12,.52,.12),hubMat);arm.position.set(x,.66,side*.7);group.add(arm);
-    }
-    const accessory=(id,shape,color,x,y,z)=>{if(cfg.parts[id]===undefined)return;const mesh=new THREE.Mesh(shape,new THREE.MeshStandardMaterial({color,metalness:.35,roughness:.55}));mesh.position.set(x,y,z);mesh.userData.part=id;mesh.scale.multiplyScalar(1+.1*cfg.parts[id]);group.add(mesh);};
-    accessory('power',new THREE.BoxGeometry(2.5,.08,1.4),0x193d73,-.5,1.9,0);
-    accessory('battery',new THREE.BoxGeometry(.65,.5,.8),0x68768a,-1,1.1,0);
-    accessory('drill',new THREE.CylinderGeometry(.12,.08,1.1,12),0xc78d48,1.8,.9,.9);
-    accessory('storage',new THREE.BoxGeometry(.7,.4,.7),0x5091aa,-1.2,1.8,.8);
-    accessory('antenna',new THREE.SphereGeometry(.55,16,8,0,Math.PI*2,0,Math.PI/2),0xf1ddb0,-1.2,2.5,-.6);
-    if(cfg.parts.traction!==undefined){accessory('traction',new THREE.BoxGeometry(3.1,.1,.15),0xb9a46c,0,.55,1.2);accessory('traction',new THREE.BoxGeometry(3.1,.1,.15),0xb9a46c,0,.55,-1.2);}
-    group.scale.setScalar(stats.type.scale);return group;
-  }
-  function preview(canvas,design){
+  function preview(canvas,design,explodeButton){
     if(!canvas)return;let renderer,frame,observer;const events=new AbortController(),scene=new THREE.Scene();
     try{const ctx=canvas.getContext('webgl2',{alpha:true,antialias:true})||canvas.getContext('webgl',{alpha:true,antialias:true});renderer=ctx?new THREE.WebGLRenderer({canvas,context:ctx,alpha:true,antialias:true}):modelCanvasRenderer(canvas);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
       scene.add(new THREE.HemisphereLight(0xe2edff,0x3a3444,1.3));const light=new THREE.DirectionalLight(0xffffff,1.2);light.position.set(6,8,6);scene.add(light);
-      const rover=vehicle(design);scene.add(rover);const camera=new THREE.PerspectiveCamera(40,1,.1,100);let yaw=.7,pitch=.35,distance=11,drag=null;
+      const assemblies=[];
+      const rover=vehicle(design,assemblies);
+      scene.add(rover);
+      const bind=(node,type,handler)=>node.addEventListener(type,handler,{signal:events.signal});
+      const explode=orbitalExplodedView(explodeButton,bind,assemblies);const camera=new THREE.PerspectiveCamera(40,1,.1,100);let yaw=.7,pitch=.35,distance=11,drag=null;
       const size=()=>{const r=canvas.getBoundingClientRect();renderer.setSize(r.width,r.height);camera.aspect=r.width/Math.max(1,r.height);camera.updateProjectionMatrix();};observer=new ResizeObserver(size);observer.observe(canvas);size();
       canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);},{signal:events.signal});
       canvas.addEventListener('pointermove',e=>{if(!drag)return;yaw-=(e.clientX-drag.x)*.007;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-drag.y)*.005,.05,1.3);drag={x:e.clientX,y:e.clientY};},{signal:events.signal});
       for(const event of ['pointerup','pointercancel'])canvas.addEventListener(event,()=>drag=null,{signal:events.signal});
       canvas.addEventListener('wheel',e=>{e.preventDefault();distance=THREE.MathUtils.clamp(distance*Math.exp(e.deltaY*.001),6,22);},{passive:false,signal:events.signal});
-      function draw(){camera.position.set(Math.sin(yaw)*distance*Math.cos(pitch),1+Math.sin(pitch)*distance,Math.cos(yaw)*distance*Math.cos(pitch));camera.lookAt(0,1.2,0);renderer.render(scene,camera);frame=requestAnimationFrame(draw);}draw();
+      function draw(){
+        const range=distance*(1+explode()*.26*Math.max(1,1.2/camera.aspect));
+        camera.position.set(Math.sin(yaw)*range*Math.cos(pitch),1+Math.sin(pitch)*range,Math.cos(yaw)*range*Math.cos(pitch));
+        camera.lookAt(0,1.2,0);renderer.render(scene,camera);frame=requestAnimationFrame(draw);
+      }draw();
     }catch(e){console.warn('Rover preview unavailable',e);}
     stop=()=>{cancelAnimationFrame(frame);observer?.disconnect();events.abort();scene.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});renderer?.dispose?.();renderer?.forceContextLoss?.();};
   }

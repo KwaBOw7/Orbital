@@ -1,7 +1,14 @@
 /* Pack validation and local geometry. No provider requests or simulation dependencies. */
-(function(root,factory){const api=factory();if(typeof module==='object')module.exports=api;else root.OrbitalPacks=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){
+(function(root, factory) {
+ const isNode = typeof module === 'object';
+ const release = isNode ? require('../version.json') : ORBITAL_RELEASE;
+ const api = factory(release);
+ if (isNode) module.exports = api;
+ else root.OrbitalPacks = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function(release) {
 'use strict';
 const MAX=512000,C=299792.458,clone=v=>JSON.parse(JSON.stringify(v));
+const versionedPackApps = new Set([release.appVersion, ...release.earlierHorizonsPackAppVersions]);
 function sha256(text){
  const bytes=new TextEncoder().encode(text),size=Math.ceil((bytes.length+9)/64)*64,buffer=new Uint8Array(size);buffer.set(bytes);buffer[bytes.length]=128;
  const view=new DataView(buffer.buffer);view.setUint32(size-4,bytes.length*8);
@@ -20,10 +27,15 @@ function validate(pack){
  const legacy=m.formatId===undefined&&m.interpolation===undefined&&versions==='["0.2.0"]';
  const previousCompat=m.formatId===undefined&&m.interpolation===undefined&&versions==='["0.3.1","0.3.2"]';
  // v0.3.3 predates explicit application/dataset/interpolation compatibility fields.
- // Admit only its exact format, interpolation and adapter fingerprint; current packs remain strict.
+ // Admit only its exact format, interpolation and adapter fingerprint; versioned packs remain strict.
  const legacyV033=m.formatId==='orbital.earth-mars-v1'&&m.interpolation==='cubic-hermite-position-velocity-v1'&&m.applicationVersion===undefined&&m.compatibleGameVersions===undefined&&m.datasetVersion===undefined&&m.interpolationVersion===undefined&&m.adapterVersion==='horizons-vector-1';
- const current=m.formatId==='orbital.earth-mars-v1'&&m.interpolation==='cubic-hermite-position-velocity-v1'&&m.applicationVersion==='0.3.4'&&m.datasetVersion==='jpl-horizons-mars-earth-vectors-1.0.0'&&m.interpolationVersion==='cubic-hermite-vector-1.0.0'&&versions==='["0.3.4"]';
- if(!legacy&&!previousCompat&&!legacyV033&&!current)fail('Unsupported pack format, application or interpolation version');
+ const versioned = versionedPackApps.has(m.applicationVersion)
+  && versions === JSON.stringify([m.applicationVersion])
+  && m.formatId === 'orbital.earth-mars-v1'
+  && m.interpolation === 'cubic-hermite-position-velocity-v1'
+  && m.datasetVersion === release.horizonsDatasetVersion
+  && m.interpolationVersion === release.interpolationVersion;
+ if(!legacy&&!previousCompat&&!legacyV033&&!versioned)fail('Unsupported pack format, application or interpolation version');
  if(typeof pack.data!=='string'||/[^\x00-\x7f]/.test(pack.data)||m.dataBytes!==pack.data.length||m.dataSha256!==sha256(pack.data)||m.packId!=='mars-'+m.dataSha256.slice(0,16))fail('Data checksum mismatch');
  if(m.endpoint!=='https://ssd.jpl.nasa.gov/api/horizons.api'||m.documentation!=='https://ssd-api.jpl.nasa.gov/doc/horizons.html'||m.frame!=='ICRF'||m.origin!=='Earth geocenter (399)'||m.timeScale!=='UTC'||!Array.isArray(m.assets)||m.assets.length||m.revision?.apiVersion!=='1.3')fail('Unsupported source or geometry');
  if(m.rawUnits?.position!=='km'||m.rawUnits?.velocity!=='km/s'||m.normalizedUnits?.range!=='km'||m.normalizedUnits?.idealDelay!=='s')fail('Unsupported units');
@@ -33,7 +45,9 @@ function validate(pack){
  const first=d.samples[0].epochUtc,last=d.samples.at(-1).epochUtc;
  if(m.coverage?.start!==first||m.coverage?.end!==last||m.coverage?.stepSeconds!==3600)fail('Coverage mismatch');
  const q=m.request;if(!q||q.COMMAND!=="'499'"||q.CENTER!=="'500@399'"||q.EPHEM_TYPE!=="'VECTORS'"||q.VEC_CORR!=="'NONE'"||q.TIME_TYPE!=="'UT'"||q.OUT_UNITS!=="'KM-S'"||q.REF_SYSTEM!=="'ICRF'"||q.REF_PLANE!=="'FRAME'"||q.VEC_TABLE!=="'2'"||q.STEP_SIZE!=="'1 h'"||q.START_TIME!=="'"+first.slice(0,10)+"'"||q.STOP_TIME!=="'"+last.slice(0,10)+"'")fail('Request provenance mismatch');
- return clone(pack);
+ const clean=clone(pack);
+ clean.manifest.provenanceStatus='provider-unverified';
+ return clean;
 }
 function geometry(pack,at){
  if(!pack)return {status:'missing'};const t=typeof at==='number'?at:epoch(at),m=pack.manifest;

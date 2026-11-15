@@ -1,4 +1,4 @@
-# ORBITAL v0.3.4 — Space Mission Design Game
+# ORBITAL v0.4.2 — Space Mission Design Game
 
 ORBITAL is an offline-first educational space-mission design game. Players configure and operate an illustrative Earth-observation mission and a Mars rover mission while balancing mass, budget, energy, communications and science return.
 
@@ -6,36 +6,40 @@ ORBITAL is an offline-first educational space-mission design game. Players confi
 
 ## Quick start
 
-### Offline play (no Python, NASA key or internet required)
+### Launch with the Play script
 
-1. Extract the release ZIP, or open the standalone HTML download.
-2. Open `index.html` in a modern desktop browser, or run the platform's `Play-*` launcher.
-3. Choose Earth or Mars and start a Practice mission. The game runs locally and does not make network requests in offline mode.
+1. Extract the release ZIP and install Python 3.
+2. For live data, put your personal [NASA API key](https://api.nasa.gov/) on one line in `API.txt` beside `launcher.py`.
+3. Run the script for your system from the extracted directory. Keep its terminal open while playing.
+4. Choose Basic, Intermediate, or Advanced, then start an Earth or Mars mission.
 
-The standalone `ORBITAL-v0.3.4.html` is the playable offline game, not a setup page. The packaged `index.html` is the same offline-first edition.
+| System | Start ORBITAL |
+| --- | --- |
+| Linux | `./Play-Linux.sh` |
+| macOS | `./Play-macOS.command` |
+| Windows | `.\Play-Windows.cmd` in PowerShell |
 
-### Optional NASA DONKI updates
+The script starts the game and checks `API.txt`. If the file contains a key, ORBITAL requests fresh NASA DONKI data in the background, even if reports are already cached. A successful refresh replaces the local snapshot. If a refresh fails, the game shows its status and keeps the last valid reports. If the key is missing or the file is malformed, the launcher opens in offline mode and displays setup instructions. The browser never receives the key.
 
-NASA space-weather reports are optional planning context. They do not change the mission physics, scoring, or launch clearance.
+Use `./Play-Linux.sh --offline` (or pass `--offline` to your platform’s script) to skip NASA requests for the session. The **Offline / stop updates** button pauses updates for the current run. A new Play launch with a configured key starts a new refresh. To refresh and cache reports without opening the browser, pass `--refresh-only` to the script.
 
-1. Install Python 3.
-2. Optionally obtain a personal NASA API key from [NASA Open APIs](https://api.nasa.gov/).
-3. To enable live reports, place the key on one line in `API.txt` beside `launcher.py`. Keep this file private; it is excluded from release packages.
-4. Run `Start-NASA-Linux.sh`, `Start-NASA-macOS.command`, or `Start-NASA-Windows.cmd`. Keep the terminal open while using the local integration.
+### Standalone offline play
 
-Without `API.txt`, the loopback launcher starts in offline mode. To force offline mode even when a key is present, pass `--offline` to `launcher.py`. To check the provider once without starting the browser/server, use `python3 launcher.py --refresh-only` (Windows: `py -3 launcher.py --refresh-only`).
+Open `index.html` directly to play without Python. Simulation and the supplied STL work offline, but unchanged HTML model views need internet for their original Three.js CDN dependency. The standalone `ORBITAL-v0.4.2.html` contains the same app and original attachments. Existing exported saves and compatible geometry packs can be imported from the game menu.
 
-| Operating system | Offline launcher | Optional NASA/loopback launcher |
-| --- | --- | --- |
-| Linux | `./Play-Linux.sh` | `./Start-NASA-Linux.sh` |
-| macOS | `./Play-macOS.command` | `./Start-NASA-macOS.command` |
-| Windows | `Play-Windows.cmd` | `Start-NASA-Windows.cmd` |
+### Learning levels and exploded views
 
-The NASA-enabled edition binds only to `127.0.0.1`. The browser never receives the NASA API key. The API key and cached reports are local user data and are not included in the ZIP.
+Basic offers step-by-step prompts. Intermediate highlights engineering trade-offs. Advanced shows technical checks and initially opens the Earth builder’s engineering values. The learning level is saved in this browser and can be changed from the footer. All three levels use the same simulation, objectives and scoring.
+
+Use **Exploded view** on the Earth radar spacecraft, launch vehicle, Mars rover assembly, lunar lander, or optical observatory to inspect its separable assemblies. Press the same control to reassemble the model. The views are schematic, and the rover view separates only installed accessories and its wheel suspensions. Planetary surface views use their globe controls.
+
+### NASA reports
+
+DONKI reports provide space-weather context. Mission physics, scoring and launch clearance use the simulation’s models. The launcher runs only on `127.0.0.1` and chooses a free local port if its default is busy. Keep `API.txt` private. The key and local report cache are excluded from the release.
 
 ## JPL Horizons geometry (optional)
 
-Mars missions can use a locally imported, validated JPL Horizons Earth–Mars geometry pack. The standalone game does not download data. Acquire a pack separately using Python 3 and a real contact identifier required by JPL's API policy:
+Mars missions can use a locally imported Earth–Mars geometry pack in Horizons format. The standalone game does not download data. From the extracted `source/` directory, acquire a pack using Python 3 and a real contact identifier required by JPL's API policy.
 
 ```bash
 python3 tools/nasa_data.py refresh \
@@ -44,7 +48,7 @@ python3 tools/nasa_data.py refresh \
   --output earth-mars-pack.json
 ```
 
-`--start` is a UTC date and `--days` is 1–7. The downloader validates the response and writes a portable JSON pack. In the game open **Data & geometry → Import geometry JSON** and select the file. The pack is pinned to new Mars missions; an existing saved mission retains its original dataset. No extrapolation is performed outside the pack's time coverage. Follow [JPL's API policy](https://ssd-api.jpl.nasa.gov/doc/) and [Horizons documentation](https://ssd-api.jpl.nasa.gov/doc/horizons.html).
+`--start` is a UTC date and `--days` is 1–7. The downloader validates the response, writes a portable JSON pack and stores the exact response bytes and acquisition manifest under the local data repository. The browser reports pack integrity and treats provider identity as unverified. In the game open **Data & geometry → Import geometry JSON** and select the file. The pack is pinned to new Mars missions; an existing saved mission retains its original dataset. No extrapolation is performed outside the pack's time coverage. Follow [JPL's API policy](https://ssd-api.jpl.nasa.gov/doc/) and [Horizons documentation](https://ssd-api.jpl.nasa.gov/doc/horizons.html).
 
 To run a denser same-provider comparison against an hourly pack, use:
 
@@ -63,18 +67,21 @@ This benchmark quantifies interpolation differences against a separately sampled
 2. Select the orbit profile and imaging/downlink plan. ORBITAL propagates its supported two-body Keplerian orbit and derives target access, virtual-station visibility and eclipse windows from geometry.
 3. Review the rocket, budget, fairing-envelope and crew checks. Launch constraints and catalogue values are educational assumptions, not vendor performance specifications.
 4. Operate the 72-hour mission with Play/Pause, speed controls, Next event and Run to mission end.
-5. Return at least 80% of the synthetic target area. Only delivered, unique imagery counts. Review the debrief and replay or revise the design.
+5. Return at least 80% of the selected target area. Only delivered, unique imagery counts. Review the debrief and replay or revise the design.
 
 The Volta Basin Floodwatch target ledger is synthetic; it is not a flood observation product, flood map, current emergency assessment or measured affected area. Baseline designs are deterministic regression examples, not real satellite performance predictions. The Floodwatch spacecraft is shown using an original procedural SAR schematic. It is not a NASA flight model or mechanically validated assembly. A separate generic optical-observatory illustration is not used as the Floodwatch spacecraft.
 
-A local import path is provided for the dated [UNOSAT product 3705](https://unosat.org/products/3705) (Sentinel-1 observation acquired 23 October 2023). To prepare a locally downloaded shapefile, keep its `.shp`, `.shx`, `.dbf` and `.prj` components together, install the optional converter dependencies, and run:
+For a local historical target, select the flood polygon layer from the referenced [UNOSAT Product 3705](https://unosat.org/products/3705). It describes a preliminary Sentinel-1 interpretation acquired 23 October 2023. Keep the shapefile sidecars together. The optional converter uses the projection from `.prj` and logs component names and hashes. Run it from the extracted `source/` directory.
 
 ```bash
 python3 -m pip install pyshp pyproj
-python3 tools/import_unosat_shapefile.py /path/to/product-3705.shp --output unosat-3705.geojson
+python3 tools/import_unosat_shapefile.py /path/to/flood-layer.shp --output flood.geojson \
+  --attest-source --source-download-url 'https://actual-download-url' \
+  --downloaded-at 'ACTUAL_ISO_DOWNLOAD_TIMESTAMP'
 ```
 
-The converter reads the source projection from `.prj`, reprojects to WGS84 and records source-component/output hashes and metadata. Import the resulting GeoJSON through **Data & geometry → Import UNOSAT GeoJSON** (the browser import is capped at 10 MB). The validated source identity is retained in the mission save/replay and changes the centre and bounding radius used to derive target-access windows. It does **not** rasterize the observed polygons into the mission's 720 scored tiles: science-coverage scoring remains a synthetic training ledger. The product reports a preliminary, historical satellite-detected water extent as of 23 October 2023; it is not a current emergency map or field-validated ground truth. Confirm the official reuse/attribution terms before redistribution; the converter does not grant rights. See `tools/import_unosat_shapefile.py`, the **Data & geometry** panel and `docs/NASA_DATA.md`.
+Replace the placeholders with the exact source URL and actual timestamp. Under **Data & geometry → Import flood GeoJSON**, review the declared origin and confirm the local import. User-supplied data remains marked as unauthenticated. The Earth mission pins a 32 × 32 weighted grid. At each scheduled observation slot, the engine evaluates the cell's estimated visibility and off-nadir angle, then tracks the unique imaged and delivered area. The debrief shows imported footprint, geometrically reachable, imaged and delivered area separately. This is historical training with sampled geometry. Check the product's reuse and attribution terms before redistributing external data.
+
 
 ## Mars rover mission
 
@@ -124,13 +131,15 @@ The game addresses the Space Mission Design Game brief through mission configura
 | NASA GMAT | A reproducible GMAT point-mass reference script and CCSDS OEM validation/comparison tool are included. | Optional external validation workflow; no GMAT run or OEM output is bundled, and the game does not use a GMAT-generated trajectory at runtime. |
 | NASA/JPL Horizons | Validated geocentric Earth–Mars vectors can be imported and pinned to new Mars missions; ideal one-way delay affects data receipt. | Meaningful imported data use, but its presence alone does not establish that it matches a listed qualifying NASA data source. |
 | NASA DONKI | Optional reported space-weather events are preserved as planning context. | Not a local radiation/forecast model and does not alter mission physics or scores. |
-| UNOSAT flood observation | Optional historical Sentinel-1 product 3705 GeoJSON import changes the Earth target-access bounding-circle input. | External, preliminary and historical. Scored tiles remain synthetic; reuse terms must be confirmed before redistribution. UNOSAT is not a NASA source. |
+| UNOSAT flood observation | Optional import of user-supplied GeoJSON uses weighted polygon cells for simulated access and delivered-area scoring. | Product 3705 is the external historical reference. Imports carry unauthenticated source claims. The original UNOSAT dataset is supplied separately, subject to reuse terms. |
 
 The Global Organizing Team has clarified that Global Award eligibility requires meaningful use of at least one NASA data source included in the Resources section of the selected challenge, with that source cited in the submission. The challenge-resource list and the exact eligibility interpretation must be checked against the official challenge page and organizer guidance. The current project does **not** claim that GMAT, DONKI or Horizons has been accepted as the qualifying source. Obtain organizer confirmation before relying on that interpretation.
 
 The project archive cannot establish team registration, team composition, submission completion or development chronology. Those items must be verified by the registered participants through the official portal and, where necessary, the Global Organizing Team. See [`docs/AUDIT_REVIEW.md`](docs/AUDIT_REVIEW.md) and [`docs/AI_USAGE_DISCLOSURE.md`](docs/AI_USAGE_DISCLOSURE.md).
 
 ## Build and tests
+
+See [audit fixes](docs/AUDIT_FIXES.md) for what changed and remaining verification.
 
 Requirements: Node.js 20+ and Python 3.
 
@@ -141,4 +150,16 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 python3 scripts/package_release.py
 ```
 
-The v0.3.4 release should be built from `source/`. Automated tests use local analytic, synthetic or mocked fixtures. They establish software-contract and deterministic regression behaviour, not independent engineering validation or live-provider success. See [`docs/VALIDATION.md`](docs/VALIDATION.md) for the current run results and open acceptance tests.
+The v0.4.2 release should be built from `source/`. Automated tests use local analytic, synthetic or mocked fixtures. They establish software-contract and deterministic regression behaviour, not independent engineering validation or live-provider success. See [`docs/VALIDATION.md`](docs/VALIDATION.md) for the current run results and open acceptance tests.
+
+
+
+## Original model integration correction
+The ten newly supplied files are included byte-for-byte under `assets/originals` and embedded unchanged. Earth, Moon, rocket, lander, Mars surface, Hubble, asteroid, night sky and Mars mountain views run in isolated HTML frames. The original rover STL is used in assembly and driving; no additional components are generated. Uniform positioning, orientation and display scale fit it into the scene without changing triangle coordinates or normals. Rocket and Hubble have permanent identification legends outside their frames, using descriptions already in the supplied files. Their existing exploded controls and tap-to-identify behavior are retained. Other files do not expose exploded assemblies. NASA reports remain Advanced-only.
+
+Hubble is an explicitly illustrative visual for the radar mission. The original Mars landscape is accessible from the model collection and rover setup; the existing navigable training terrain remains the gameplay terrain. No new terrain geometry was authored for this update.
+
+Run `python3 scripts/embed_original_models.py` then `node build.mjs` to rebuild the embedded attachments. Run the game with the Play script as usual. `--offline` stops NASA retrieval, not the unchanged model files’ third-party dependency requests.
+
+### Model preview controls
+Compact lunar previews hide Fire descent engine; expanded views retain it. Mars Landmarks and Auto-rotate are disabled and hidden in both compact and expanded views. These are display-layer overrides; original source files and mesh geometry are unchanged. Direct Asteroid 3D and Rocket 3D buttons open the supplied models. The newly uploaded asteroid and rocket files are byte-identical to the previous uploads, now packaged under their latest filenames.

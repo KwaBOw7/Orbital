@@ -2,7 +2,7 @@
 const OrbitalInline=(()=>{
  let stops=[];
  function html(kind,flight=false,compact=false){
-   const model=OrbitalModels.get(kind);if(!model)return '';
+   const model=OrbitalModels.get(kind);if(!model)return '';if(model.original)return OrbitalOriginal.html(model.original,compact);
    const controls=model.controls.map(([id,label,pressed])=>`<button class="btn compact" id="${id}" aria-pressed="${pressed}">${label}</button>`).join('');
    return `<div class="inline-model ${flight?'in-flight':''} ${compact?'model-card':''}" data-inline-model="${kind}"><div class="inline-model-stage"><canvas tabindex="0" aria-label="Interactive ${model.title}"></canvas></div><div class="model-controls">${controls}</div><p id="info" class="model-info">Drag to rotate · scroll to zoom</p>${compact?`<button class="model-expand btn compact" data-action="model-${kind}" aria-label="Expand ${model.title}">Expand ↗</button>`:''}</div>`;
  }

@@ -1,6 +1,6 @@
 {
   "name": "orbital-mission-design",
-  "version": "0.3.4",
+  "version": "0.4.4",
   "private": true,
   "description": "NASA-connected educational Space Mission Design Game",
   "scripts": {

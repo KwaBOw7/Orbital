@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "version": "0.3.4",
-  "provenance": "All numerical hardware, launch, orbit and science values in this demo are illustrative game settings, not flight specifications. Vehicle names identify the inspiration only. v0.3.2 adds an educational circular two-body orbit/ground-track/shadow model, geometry-derived access and virtual-station visibility windows, simplified SAR range geometry, free-space RF link budgeting, battery efficiency losses and lumped thermal/propulsion estimates. Added orbital elements and virtual node coordinates are scenario assumptions, not operational ephemerides or actual ground-station facilities. Mission v0.3.2 uses circular two-body Earth propagation, GMST Earth-fixed coordinates, cylindrical shadow, 30-second sampled access windows, virtual training ground nodes, simplified SAR range geometry, free-space RF/Shannon limit, battery efficiencies and a single-node thermal estimate. These are educational models, not flight-certified predictions. Release 0.3.4 restores geometry-derived educational engineering models. All targets remain synthetic and model assumptions are documented.",
+  "version": "0.4.4",
+  "provenance": "Authored educational hardware, budget and training stations. The Earth scenario uses two-body propagation, idealized SAR and RF, and a synthetic training ledger unless a local flood polygon target is imported. See docs/DATA_PROVENANCE.md for assumptions and source status.",
   "scenario": {
     "id": "flood-774",
     "name": "Floodwatch",
