@@ -1,8 +1,8 @@
 {
   "name": "orbital-mission-design",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
-  "description": "NASA-connected Space Mission Design Game",
+  "description": "NASA-connected educational Space Mission Design Game",
   "scripts": {
     "build": "node build.mjs",
     "test": "node --test tests/*.test.cjs"

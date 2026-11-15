@@ -25,12 +25,19 @@ DOC = 'https://ssd-api.jpl.nasa.gov/doc/horizons.html'
 MAX_BYTES = 512_000
 MAX_PACKS = 64
 VERSION = '1.3'
-APP_VERSION = '0.3.3'
-PACK_SCHEMA = 'orbital.earth-mars-v1'
-INTERPOLATION = 'cubic-hermite-position-velocity-v1'
 C_KM_S = 299792.458
 ROOT = Path(__file__).resolve().parents[1]
 UTC = timezone.utc
+RELEASE_INFO = json.loads((ROOT/'version.json').read_text(encoding='utf-8'))
+APP_VERSION = RELEASE_INFO['appVersion']
+SUPPORTED_GAME_VERSIONS = ['0.3.4']
+PREVIOUS_GAME_VERSIONS = [['0.3.1', '0.3.2']]
+LEGACY_GAME_VERSIONS = ['0.2.0']
+DATASET_VERSION = RELEASE_INFO['horizonsDatasetVersion']
+INTERPOLATION_VERSION = RELEASE_INFO['interpolationVersion']
+MAX_REFERENCE_SAMPLES = 2048
+PACK_SCHEMA = 'orbital.earth-mars-v1'
+INTERPOLATION = 'cubic-hermite-position-velocity-v1'
 
 
 def canonical(value):
@@ -51,11 +58,25 @@ def iso(value):
     return value.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
-def parameters(start, days):
-    day = datetime.strptime(start, '%Y-%m-%d').replace(tzinfo=UTC)
+def step_seconds(value):
+    if not isinstance(value, str) or not re.fullmatch(r"(?:5|10|15|30) m|1 h", value):
+        raise ValueError('Supported Horizons steps are 5 m, 10 m, 15 m, 30 m and 1 h')
+    amount, unit = value.split()
+    return int(amount) * (60 if unit == 'm' else 3600)
+
+
+def parameters(start, days, step='1 h'):
+    try:
+        day = datetime.strptime(start, '%Y-%m-%d').replace(tzinfo=UTC)
+    except (TypeError, ValueError):
+        raise ValueError('Choose a valid start date in years 2000–2100') from None
+    seconds = step_seconds(step)
     if not 1 <= days <= 7 or not 2000 <= day.year <= 2100:
         raise ValueError('Choose 1–7 days in years 2000–2100')
-    return {'format': 'json', 'COMMAND': "'499'", 'CENTER': "'500@399'", 'MAKE_EPHEM': "'YES'", 'OBJ_DATA': "'NO'", 'EPHEM_TYPE': "'VECTORS'", 'START_TIME': "'" + start + "'", 'STOP_TIME': "'" + (day + timedelta(days=days)).strftime('%Y-%m-%d') + "'", 'STEP_SIZE': "'1 h'", 'VEC_TABLE': "'2'", 'VEC_CORR': "'NONE'", 'OUT_UNITS': "'KM-S'", 'REF_PLANE': "'FRAME'", 'REF_SYSTEM': "'ICRF'", 'TIME_TYPE': "'UT'", 'CSV_FORMAT': "'YES'", 'VEC_LABELS': "'YES'"}
+    count = days*86400//seconds + 1
+    if count > MAX_REFERENCE_SAMPLES:
+        raise ValueError(f'Request would exceed {MAX_REFERENCE_SAMPLES} reference samples; use a coarser step or shorter interval')
+    return {'format': 'json', 'COMMAND': "'499'", 'CENTER': "'500@399'", 'MAKE_EPHEM': "'YES'", 'OBJ_DATA': "'NO'", 'EPHEM_TYPE': "'VECTORS'", 'START_TIME': "'" + start + "'", 'STOP_TIME': "'" + (day + timedelta(days=days)).strftime('%Y-%m-%d') + "'", 'STEP_SIZE': "'" + step + "'", 'VEC_TABLE': "'2'", 'VEC_CORR': "'NONE'", 'OUT_UNITS': "'KM-S'", 'REF_PLANE': "'FRAME'", 'REF_SYSTEM': "'ICRF'", 'TIME_TYPE': "'UT'", 'CSV_FORMAT': "'YES'", 'VEC_LABELS': "'YES'"}
 
 
 def parse_horizons(payload, params):
@@ -90,19 +111,22 @@ def parse_horizons(payload, params):
         rows.append({'epochUtc': iso(cal), 'positionKm': values[:3], 'velocityKmS': values[3:], 'rangeKm': r, 'idealDelaySeconds': r/C_KM_S})
     start = datetime.strptime(params['START_TIME'].strip("'"), '%Y-%m-%d').replace(tzinfo=UTC)
     end = datetime.strptime(params['STOP_TIME'].strip("'"), '%Y-%m-%d').replace(tzinfo=UTC)
-    expected = int((end-start).total_seconds()/3600)+1
-    if len(rows) != expected or not 25 <= len(rows) <= 169:
+    interval = step_seconds(params.get('STEP_SIZE', "'1 h'").strip("'"))
+    expected = int((end-start).total_seconds()/interval)+1
+    if len(rows) != expected or not 25 <= len(rows) <= MAX_REFERENCE_SAMPLES:
         raise ValueError('Incomplete ephemeris interval')
     for index, row in enumerate(rows):
-        if utc(row['epochUtc']) != start+timedelta(hours=index):
+        if utc(row['epochUtc']) != start+timedelta(seconds=interval*index):
             raise ValueError('Duplicate, missing or unordered epoch')
     return rows
 
 
 def make_pack(payload, params):
+    if step_seconds(params.get('STEP_SIZE', "'1 h'").strip("'")) != 3600:
+        raise ValueError('Portable geometry packs must use hourly samples; use benchmark for denser references')
     rows = parse_horizons(payload, params)
     data = {'samples': rows}
-    manifest = {'schemaVersion': 1, 'packVersion': 1, 'formatId': PACK_SCHEMA, 'interpolation': INTERPOLATION, 'kind': 'earth-mars-geometry', 'createdAt': iso(datetime.now(UTC)), 'provider': 'NASA/JPL Horizons', 'endpoint': ENDPOINT, 'documentation': DOC, 'dataset': 'Mars (499) relative to Earth geocenter (399)', 'revision': {'apiVersion': VERSION, 'rawSha256': digest(payload)}, 'request': params, 'acquiredAt': iso(datetime.now(UTC)), 'observationTime': None, 'coverage': {'start': rows[0]['epochUtc'], 'end': rows[-1]['epochUtc'], 'stepSeconds': 3600}, 'frame': 'ICRF', 'origin': 'Earth geocenter (399)', 'timeScale': 'UTC', 'rawUnits': {'position': 'km', 'velocity': 'km/s'}, 'normalizedUnits': {'range': 'km', 'idealDelay': 's'}, 'fieldStatus': {'epochUtc': 'official calculated ephemeris', 'positionKm': 'official calculated ephemeris', 'velocityKmS': 'official calculated ephemeris', 'rangeKm': 'derived', 'idealDelaySeconds': 'derived', 'hardware': 'game-tuned', 'measurementUncertainty': 'unknown'}, 'adapterVersion': 'horizons-vector-1', 'transformVersion': 'hermite-norm-over-c-1', 'qualityFlags': ['Calculated geometry, not telemetry', 'Hourly source samples; application uses cubic Hermite interpolation inside coverage only', 'Ideal vacuum delay excludes motion during propagation, relay and processing'], 'assets': [], 'attribution': 'NASA/JPL Solar System Dynamics, Horizons', 'usageTerms': 'https://ssd.jpl.nasa.gov/horizons/manual.html#acknowledgements', 'dataBytes': len(canonical(data)), 'dataSha256': digest(data)}
+    manifest = {'schemaVersion': 1, 'packVersion': 1, 'compatibleGameVersions': SUPPORTED_GAME_VERSIONS, 'applicationVersion': APP_VERSION, 'datasetVersion': DATASET_VERSION, 'interpolationVersion': INTERPOLATION_VERSION, 'formatId': 'orbital.earth-mars-v1', 'interpolation': 'cubic-hermite-position-velocity-v1', 'kind': 'earth-mars-geometry', 'createdAt': iso(datetime.now(UTC)), 'provider': 'NASA/JPL Horizons', 'endpoint': ENDPOINT, 'documentation': DOC, 'dataset': 'Mars (499) relative to Earth geocenter (399)', 'revision': {'apiVersion': VERSION, 'rawSha256': digest(payload)}, 'request': params, 'acquiredAt': iso(datetime.now(UTC)), 'observationTime': None, 'coverage': {'start': rows[0]['epochUtc'], 'end': rows[-1]['epochUtc'], 'stepSeconds': 3600}, 'frame': 'ICRF', 'origin': 'Earth geocenter (399)', 'timeScale': 'UTC', 'rawUnits': {'position': 'km', 'velocity': 'km/s'}, 'normalizedUnits': {'range': 'km', 'idealDelay': 's'}, 'fieldStatus': {'epochUtc': 'official calculated ephemeris', 'positionKm': 'official calculated ephemeris', 'velocityKmS': 'official calculated ephemeris', 'rangeKm': 'derived', 'idealDelaySeconds': 'derived', 'hardware': 'game-tuned', 'measurementUncertainty': 'unknown'}, 'adapterVersion': RELEASE_INFO['horizonsAdapterVersion'], 'transformVersion': 'norm-over-c-1', 'qualityFlags': ['Calculated geometry, not spacecraft telemetry', 'Hourly Horizons samples are interpolated by the application using cubic Hermite position/velocity interpolation between adjacent samples', 'Interpolation error has not yet been certified against a dense independent reference series', 'No extrapolation is performed outside pack coverage', 'Ideal vacuum delay excludes motion during propagation, relay and processing'], 'assets': [], 'attribution': 'NASA/JPL Solar System Dynamics, Horizons', 'usageTerms': 'https://ssd.jpl.nasa.gov/horizons/manual.html#acknowledgements', 'dataBytes': len(canonical(data)), 'dataSha256': digest(data)}
     manifest['packId'] = 'mars-' + manifest['dataSha256'][:16]
     return {'manifest': manifest, 'data': canonical(data).decode('ascii')}
 
@@ -114,11 +138,23 @@ def validate(pack):
     if not isinstance(encoded, str) or not encoded.isascii():
         raise ValueError('Expected ASCII JSON payload')
     d = json.loads(encoded)
-    if m.get('schemaVersion') != 1 or m.get('packVersion') != 1 or m.get('kind') != 'earth-mars-geometry':
+    compatible = m.get('compatibleGameVersions')
+    legacy = compatible == LEGACY_GAME_VERSIONS
+    previous = compatible in PREVIOUS_GAME_VERSIONS
+    # v0.3.3 envelopes predate explicit compatibility/dataset version fields.
+    # Their format, interpolation name and old adapter identifier are exact-match gates.
+    legacy_v033 = (compatible is None and m.get('applicationVersion') is None
+                   and m.get('datasetVersion') is None and m.get('interpolationVersion') is None
+                   and m.get('formatId') == PACK_SCHEMA
+                   and m.get('interpolation') == INTERPOLATION
+                   and m.get('adapterVersion') == 'horizons-vector-1')
+    current = compatible == SUPPORTED_GAME_VERSIONS
+    if m.get('schemaVersion') != 1 or m.get('packVersion') != 1 or not (legacy or previous or legacy_v033 or current) or m.get('kind') != 'earth-mars-geometry':
         raise ValueError('Incompatible pack')
-    if m.get('formatId') != PACK_SCHEMA or m.get('interpolation') != INTERPOLATION:
-        if 'formatId' in m or 'interpolation' in m or m.get('compatibleGameVersions') != ['0.2.0']:
-            raise ValueError('Unsupported pack format or interpolation')
+    if current and (m.get('applicationVersion') != APP_VERSION or m.get('datasetVersion') != DATASET_VERSION or m.get('interpolationVersion') != INTERPOLATION_VERSION or m.get('formatId') != 'orbital.earth-mars-v1' or m.get('interpolation') != 'cubic-hermite-position-velocity-v1'):
+        raise ValueError('Unsupported geometry dataset or interpolation version')
+    if previous and (m.get('applicationVersion') not in compatible or not m.get('datasetVersion') or not m.get('interpolationVersion')):
+        raise ValueError('Unsupported previous geometry pack version')
     expected = hashlib.sha256(encoded.encode('ascii')).hexdigest()
     if m.get('dataSha256') != expected or m.get('dataBytes') != len(encoded) or m.get('packId') != 'mars-'+expected[:16]:
         raise ValueError('Pack checksum or identifier mismatch')
@@ -128,6 +164,8 @@ def validate(pack):
         raise ValueError('Wrong units')
     if not isinstance(m.get('revision'), dict) or m['revision'].get('apiVersion') != VERSION:
         raise ValueError('Unreviewed source version')
+    if current and m.get('adapterVersion') != RELEASE_INFO['horizonsAdapterVersion']:
+        raise ValueError('Unreviewed Horizons adapter version')
     for name in ['createdAt', 'acquiredAt']:
         utc(m[name])
     if m.get('observationTime') is not None:
@@ -163,6 +201,68 @@ def validate(pack):
     # Checksums detect corruption, not authorship. Imported packs are never certified official.
     return pack
 
+
+def hermite_position(a, b, epoch_time):
+    """Mirror the client-side cubic Hermite interpolation for validation only."""
+    ta, tb = utc(a['epochUtc']), utc(b['epochUtc'])
+    h = (tb-ta).total_seconds()
+    elapsed = (epoch_time-ta).total_seconds()
+    u = elapsed/h
+    u2, u3 = u*u, u*u*u
+    return [
+        (2*u3-3*u2+1)*a['positionKm'][i] + (u3-2*u2+u)*h*a['velocityKmS'][i]
+        + (-2*u3+3*u2)*b['positionKm'][i] + (u3-u2)*h*b['velocityKmS'][i]
+        for i in range(3)
+    ]
+
+
+def benchmark_geometry(hourly_pack, dense_rows):
+    """Compare hourly Hermite interpolation with a separately sampled dense series."""
+    validate(hourly_pack)
+    samples = json.loads(hourly_pack['data'])['samples']
+    if len(dense_rows) < 3:
+        raise ValueError('Dense reference must contain at least three samples')
+    start, end = utc(samples[0]['epochUtc']), utc(samples[-1]['epochUtc'])
+    position_errors, velocity_errors, range_errors, delay_errors = [], [], [], []
+    for ref in dense_rows:
+        t = utc(ref['epochUtc'])
+        if t < start or t > end:
+            continue
+        offset = (t-start).total_seconds()/3600
+        lo = min(int(offset), len(samples)-2)
+        a, b = samples[lo], samples[lo+1]
+        if t == utc(a['epochUtc']) or t == utc(b['epochUtc']):
+            continue
+        predicted = hermite_position(a, b, t)
+        position_errors.append(math.dist(predicted, ref['positionKm']))
+        predicted_velocity = []
+        span = (utc(b['epochUtc'])-utc(a['epochUtc'])).total_seconds()
+        u = (t-utc(a['epochUtc'])).total_seconds()/span
+        u2 = u*u
+        for i in range(3):
+            predicted_velocity.append(((6*u2-6*u)*a['positionKm'][i]+(-6*u2+6*u)*b['positionKm'][i])/span
+                +(3*u2-4*u+1)*a['velocityKmS'][i]+(3*u2-2*u)*b['velocityKmS'][i])
+        velocity_errors.append(math.dist(predicted_velocity, ref['velocityKmS']))
+        predicted_range = math.hypot(*predicted)
+        range_errors.append(abs(predicted_range-ref['rangeKm']))
+        delay_errors.append(abs(predicted_range/C_KM_S-ref['idealDelaySeconds']))
+    if not position_errors:
+        raise ValueError('No interior dense-reference epochs overlap the hourly pack')
+    def metrics(values):
+        return {'max': max(values), 'rms': math.sqrt(sum(x*x for x in values)/len(values))}
+    return {
+        'referenceProvider': 'NASA/JPL Horizons',
+        'comparison': 'Hourly cubic-Hermite interpolation vs separately requested denser Horizons vector series',
+        'hourlyPackId': hourly_pack['manifest']['packId'],
+        'hourlyCoverage': {'start': samples[0]['epochUtc'], 'end': samples[-1]['epochUtc']},
+        'denseReferenceSamples': len(dense_rows),
+        'interiorEpochsCompared': len(position_errors),
+        'positionErrorKm': metrics(position_errors),
+        'velocityErrorKmS': metrics(velocity_errors),
+        'rangeErrorKm': metrics(range_errors),
+        'idealDelayErrorSeconds': metrics(delay_errors),
+        'interpretation': 'This is a cross-cadence comparison from the same Horizons provider, not an independent-provider validation or a guarantee of physical accuracy.'
+    }
 
 def read_pack(path):
     with open(path, 'rb') as f:
@@ -301,6 +401,10 @@ def main():
     imp.add_argument('file', type=Path)
     exp = sub.add_parser('export', help='Export active stored pack; no network')
     exp.add_argument('file', type=Path)
+    benchmark = sub.add_parser('benchmark', help='Compare hourly pack interpolation with a separately requested dense Horizons reference series')
+    benchmark.add_argument('--pack', type=Path, required=True, help='Validated hourly geometry pack')
+    benchmark.add_argument('--reference-step', choices=['5 m', '10 m', '15 m', '30 m'], default='5 m')
+    benchmark.add_argument('--contact', default=os.environ.get('ORBITAL_JPL_CONTACT', ''))
     sub.add_parser('status')
     sub.add_parser('rollback')
     args = parser.parse_args()
@@ -325,6 +429,16 @@ def main():
             path = repo.install(pack)
             atomic(args.output, canonical(read_pack(path)))
             print(f'Validated {len(json.loads(pack["data"])["samples"])} epochs; {len(canonical(pack))} bytes. Export: {args.output}')
+        elif args.command == 'benchmark':
+            coarse = read_pack(args.pack)
+            samples = json.loads(coarse['data'])['samples']
+            start_date = samples[0]['epochUtc'][:10]
+            days = (utc(samples[-1]['epochUtc'])-utc(samples[0]['epochUtc'])).days
+            dense_params = parameters(start_date, days, args.reference_step)
+            print(f'Downloading dense {args.reference_step} Horizons reference series for {start_date} ({days} day(s)).', flush=True)
+            dense = parse_horizons(retrieve(dense_params, args.contact), dense_params)
+            report = benchmark_geometry(coarse, dense)
+            print(json.dumps(report, indent=2, sort_keys=True))
         elif args.command == 'import':
             print(repo.install(read_pack(args.file)))
         elif args.command == 'export':

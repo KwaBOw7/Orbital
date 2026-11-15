@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "version": "0.3.3",
-  "provenance": "All numerical hardware, launch, orbit and science values in this demo are illustrative game settings, not flight specifications. Vehicle names identify the inspiration only.",
+  "version": "0.3.4",
+  "provenance": "All numerical hardware, launch, orbit and science values in this demo are illustrative game settings, not flight specifications. Vehicle names identify the inspiration only. v0.3.2 adds an educational circular two-body orbit/ground-track/shadow model, geometry-derived access and virtual-station visibility windows, simplified SAR range geometry, free-space RF link budgeting, battery efficiency losses and lumped thermal/propulsion estimates. Added orbital elements and virtual node coordinates are scenario assumptions, not operational ephemerides or actual ground-station facilities. Mission v0.3.2 uses circular two-body Earth propagation, GMST Earth-fixed coordinates, cylindrical shadow, 30-second sampled access windows, virtual training ground nodes, simplified SAR range geometry, free-space RF/Shannon limit, battery efficiencies and a single-node thermal estimate. These are educational models, not flight-certified predictions. Release 0.3.4 restores geometry-derived educational engineering models. All targets remain synthetic and model assumptions are documented.",
   "scenario": {
     "id": "flood-774",
     "name": "Floodwatch",
@@ -13,7 +13,20 @@
     "budget": 160,
     "reserve": 20,
     "seed": 774,
-    "developmentLimit": 50
+    "developmentLimit": 50,
+    "datasetVersion": "synthetic-floodwatch-volta-v1",
+    "epochUtc": "2026-11-14T12:00:00Z",
+    "targetPoint": {
+      "lat": 7.0,
+      "lon": 0.5,
+      "label": "Approximate Volta Basin scenario centre; not a flood-observation product"
+    },
+    "targetIncidenceDeg": {
+      "near": 25,
+      "far": 45
+    },
+    "minimumGroundElevationDeg": 10,
+    "targetRadiusKm": 60
   },
   "tiers": [
     "Basic",
@@ -350,7 +363,12 @@
         ]
       ],
       "injection": "LEO",
-      "description": "48 revolutions in 72 h. A 30-minute eclipse and short ground contacts reward careful energy and data planning."
+      "description": "Approx. 45.7 revolutions in 72 h under the circular two-body training model. Eclipse and contact windows are calculated from propagated geometry with 30 s sampling.",
+      "inclinationDeg": 51.6,
+      "raanDeg": 233.6,
+      "meanAnomalyDeg": 0,
+      "epochUtc": "2026-11-14T12:00:00Z",
+      "eccentricity": 0
     },
     {
       "id": "leo700",
@@ -381,7 +399,12 @@
         ]
       ],
       "injection": "LEO",
-      "description": "43 full revolutions. Longer downlink windows, a 35-minute eclipse and fewer target passes create a different trade-off."
+      "description": "Approx. 43.7 revolutions in 72 h under the circular two-body training model. The higher orbit changes period, target access, eclipse timing and station visibility.",
+      "inclinationDeg": 51.6,
+      "raanDeg": 233.6,
+      "meanAnomalyDeg": 0,
+      "epochUtc": "2026-11-14T12:00:00Z",
+      "eccentricity": 0
     }
   ],
   "rockets": [
@@ -457,5 +480,116 @@
       "propellant": "Not modelled \u00b7 carrier service",
       "color": "#f7ede2"
     }
-  ]
+  ],
+  "modelVersion": "eo-774-mission-model-1.2.0",
+  "marsModelVersion": "mars-rover-mission-model-1.2.0",
+  "marsScenarioDatasetVersion": "illustrative-jezero-terrain-v1",
+  "groundStations": [
+    {
+      "id": "accra-virtual",
+      "name": "Accra virtual ground node",
+      "lat": 5.6,
+      "lon": -0.2,
+      "altitudeM": 0,
+      "kind": "virtual-training-node"
+    },
+    {
+      "id": "madrid-virtual",
+      "name": "Madrid virtual ground node",
+      "lat": 40.4,
+      "lon": -3.7,
+      "altitudeM": 650,
+      "kind": "virtual-training-node"
+    },
+    {
+      "id": "canberra-virtual",
+      "name": "Canberra virtual ground node",
+      "lat": -35.3,
+      "lon": 149.1,
+      "altitudeM": 600,
+      "kind": "virtual-training-node"
+    },
+    {
+      "id": "hawaii-virtual",
+      "name": "Hawaii virtual ground node",
+      "lat": 21.3,
+      "lon": -157.8,
+      "altitudeM": 300,
+      "kind": "virtual-training-node"
+    },
+    {
+      "id": "kourou-virtual",
+      "name": "Kourou virtual ground node",
+      "lat": 5.2,
+      "lon": -52.8,
+      "altitudeM": 0,
+      "kind": "virtual-training-node"
+    }
+  ],
+  "instrumentModel": {
+    "name": "Educational SAR range model",
+    "centreFrequencyGHz": 9.6,
+    "bandwidthMHz": [
+      8.7,
+      13.1,
+      21.8,
+      32.6
+    ],
+    "incidenceDeg": 35,
+    "nearIncidenceDeg": 25,
+    "farIncidenceDeg": 45,
+    "antennaLengthM": 10,
+    "assumption": "Bandwidth and antenna values are instructional assumptions selected for the game; they are not a flight instrument specification."
+  },
+  "rfModel": {
+    "frequencyGHz": 8.4,
+    "txPowerW": 20,
+    "txGainDbi": 25,
+    "rxGainDbi": 38,
+    "lossesDb": 3,
+    "noiseTemperatureK": 150,
+    "bandwidthMHz": 100,
+    "minimumElevationDeg": 10,
+    "assumption": "Illustrative X-band-like free-space training link with virtual ground nodes; not a real network or certified link design."
+  },
+  "powerModel": {
+    "chargeEfficiency": 0.95,
+    "dischargeEfficiency": 0.95,
+    "arrayDegradationFactor": 0.95,
+    "assumption": "Rated array output is derated by degradation and a fixed cosine projection for the stated illustrative sun-incidence angle; ideal sun tracking, array temperature and degradation uncertainty are not modelled.",
+    "arraySunIncidenceDeg": 15
+  },
+  "thermalModel": {
+    "radiatorAreaM2": 0.4,
+    "emissivity": 0.85,
+    "heatCapacityJK": 80000,
+    "minimumTemperatureK": 255,
+    "maximumTemperatureK": 310,
+    "internalHeatFraction": 0.7,
+    "heaterMaxW": 160,
+    "assumption": "Single-node, shaded-radiator lumped thermal estimate; geometry, multilayer insulation, view factors and detailed component temperatures are omitted."
+  },
+  "propulsionModel": {
+    "ispSeconds": 220,
+    "deploymentPropellantKg": 2,
+    "assumption": "Illustrative monopropellant-class Isp for educational rocket-equation demonstration; not an actual bus propulsion specification."
+  },
+  "adcsModel": {
+    "minimumOffNadirDeg": 25,
+    "maximumOffNadirDeg": [
+      35,
+      40,
+      45,
+      45
+    ],
+    "slewRateDegPerSec": [
+      0.5,
+      0.7,
+      0.9,
+      1.2
+    ],
+    "settleTimeSeconds": 8,
+    "assumption": "Illustrative body-pointing envelope and slew rates; no reaction-wheel momentum, jitter, structural flexure or control-loop model."
+  },
+  "physicsModelVersion": "orbital-physics-0.3.4"
 }

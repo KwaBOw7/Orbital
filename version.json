@@ -1,0 +1,12 @@
+{
+  "appVersion": "0.3.4",
+  "simulationModelVersion": "eo-774-mission-model-1.2.0",
+  "horizonsDatasetVersion": "jpl-horizons-mars-earth-vectors-1.0.0",
+  "horizonsAdapterVersion": "horizons-vector-1.2.0",
+  "interpolationVersion": "cubic-hermite-vector-1.0.0",
+  "donkiAdapterVersion": "donki-1.1.0",
+  "marsSimulationModelVersion": "mars-rover-mission-model-1.2.0",
+  "marsScenarioDatasetVersion": "illustrative-jezero-terrain-v1",
+  "physicsModelVersion": "orbital-physics-0.3.4",
+  "marsDescentModelVersion": "mars-edl-point-mass-0.3.4"
+}

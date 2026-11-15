@@ -1,28 +1,24 @@
-/* Offline Mars terrain + the supplied rover STL. Distances are compressed for the view,
+/* Offline Mars terrain + an original procedural rover illustration. Distances are compressed for the view,
    while the mission HUD retains the practice simulation's telemetry. */
 const OrbitalMars = (() => {
   let stop = null;
   let view = {yaw:0.75, pitch:0.22, distance:24};
   let roverGeometry;
   function geometry() {
-    if (roverGeometry) return roverGeometry.clone();
-    const bytes = Uint8Array.from(atob(ORBITAL_ROVER_STL), c => c.charCodeAt(0));
-    const data = new DataView(bytes.buffer), count = data.getUint32(80, true);
-    if (84 + count * 50 !== bytes.length) throw Error('Invalid rover mesh');
-    const points = new Float32Array(count * 9);
-    for (let i=0;i<count;i++) for(let j=0;j<9;j++) points[i*9+j]=data.getFloat32(84+i*50+12+j*4,true);
-    roverGeometry = new THREE.BufferGeometry();
-    roverGeometry.setAttribute('position', new THREE.BufferAttribute(points,3));
-    roverGeometry.rotateX(-Math.PI/2); // STL uses Z-up; the terrain uses Y-up.
-    roverGeometry.computeBoundingBox();
-    const box=roverGeometry.boundingBox, center=box.getCenter(new THREE.Vector3());
-    roverGeometry.translate(-center.x,-box.min.y,-center.z);
-    roverGeometry.computeVertexNormals();
+    // Original schematic chassis geometry; no user-supplied or third-party rover mesh is bundled.
+    roverGeometry ??= new THREE.BoxGeometry(2.2,.55,1.45);
     return roverGeometry.clone();
   }
   function vehicle(design) {
     const cfg=design||MarsMission.starter(),stats=MarsMission.stats(cfg),group=new THREE.Group();
-    const body=new THREE.Mesh(geometry(),new THREE.MeshStandardMaterial({color:stats.type.color,metalness:.3,roughness:.65,side:THREE.DoubleSide}));group.add(body);
+    const body=new THREE.Mesh(geometry(),new THREE.MeshStandardMaterial({color:stats.type.color,metalness:.3,roughness:.65,side:THREE.DoubleSide}));body.position.y=.92;group.add(body);
+    // Six original procedural wheels and simple suspension arms make the vehicle legible without an unlicensed STL.
+    const wheelMat=new THREE.MeshStandardMaterial({color:0x333a42,metalness:.18,roughness:.88}),hubMat=new THREE.MeshStandardMaterial({color:0xb5a07b,metalness:.55,roughness:.5});
+    for(const x of [-.82,0,.82])for(const side of [-1,1]){
+      const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.18,20),wheelMat);wheel.rotation.x=Math.PI/2;wheel.position.set(x,.42,side*.83);group.add(wheel);
+      const hub=new THREE.Mesh(new THREE.CylinderGeometry(.13,.13,.2,12),hubMat);hub.rotation.x=Math.PI/2;hub.position.copy(wheel.position);group.add(hub);
+      const arm=new THREE.Mesh(new THREE.BoxGeometry(.12,.52,.12),hubMat);arm.position.set(x,.66,side*.7);group.add(arm);
+    }
     const accessory=(id,shape,color,x,y,z)=>{if(cfg.parts[id]===undefined)return;const mesh=new THREE.Mesh(shape,new THREE.MeshStandardMaterial({color,metalness:.35,roughness:.55}));mesh.position.set(x,y,z);mesh.userData.part=id;mesh.scale.multiplyScalar(1+.1*cfg.parts[id]);group.add(mesh);};
     accessory('power',new THREE.BoxGeometry(2.5,.08,1.4),0x193d73,-.5,1.9,0);
     accessory('battery',new THREE.BoxGeometry(.65,.5,.8),0x68768a,-1,1.1,0);
@@ -90,7 +86,7 @@ const OrbitalMars = (() => {
       scene.add(rover);
       const markers=run.manual?MarsMission.waypoints.map((point,i)=>{const group=new THREE.Group();group.position.set(point.x,height(point.x,point.z)+.4,point.z);const material=new THREE.MeshBasicMaterial({color:0x49d9ee});const ring=new THREE.Mesh(new THREE.TorusGeometry(2.5,.16,6,20),material);ring.rotation.x=Math.PI/2;group.add(ring);const pole=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,4,6),material);pole.position.y=2;group.add(pole);const flag=new THREE.Mesh(new THREE.BoxGeometry(1.3,.65,.08),material);flag.position.set(.6,3.5,0);group.add(flag);scene.add(group);return group;}):[];
       const held={};let lastHud=0,lastSave=0;
-      const clearKeys=()=>{for(const k in held)delete held[k];};
+      const clearKeys=()=>{for(const k in held)delete held[k];if(run.manual)run.speedMps=0;};
       on(canvas,'blur',clearKeys);on(window,'blur',clearKeys);on(document,'visibilitychange',clearKeys);
       on(canvas,'keydown',e=>{
         if(!run.manual)return;

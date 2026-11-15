@@ -1,35 +1,36 @@
-# ORBITAL v0.3.3 data and model provenance
+# ORBITAL v0.3.4 — Data and model provenance
 
-The game distinguishes sourced context, application-derived quantities and authored assumptions. No NASA data source validates an unrelated hardware field merely by being connected to the app.
+ORBITAL separates **sourced context**, **application-derived quantities** and **authored educational assumptions**. A connected NASA service does not validate unrelated spacecraft parameters. All calculations are deterministic educational models and are not flight-qualified predictions.
 
-| Item | Current origin | Fidelity / effect |
+| Item | Origin / method | Fidelity and effect |
 | --- | --- | --- |
-| Earth hardware, budgets, launch allocations and tier values | Authored catalogue | Game trade-offs; no verified manufacturer specifications |
-| Earth orbit, target passes, eclipses and radio contacts | Fixed authored schedules | No propagated ground track or geometry-dependent availability |
-| Volta Basin target ledger | Synthetic 720-tile scenario | Not a flood map, current emergency assessment or measured area |
-| SAR resolution/data/power | Authored per-tier values | No incidence/swath/radiometric/pointing model |
-| Link rate | Authored GB/min during fixed contact intervals | No RF link budget or atmospheric attenuation |
-| Earth power | Constant W between events; Wh storage and reserve thresholds | Arithmetic tested; no angle, degradation or battery-chemistry validation |
-| Weather, launch and thermal behavior | Game constraints | No probability, ascent, drag or thermal dynamics |
-| Mars chassis, services, profiles and contact windows | Authored rules | Configurable game mission, not actual launch or relay availability |
-| Mars descent altitude and speed | Interpolated authored checkpoints | No atmosphere/drag/parachute/engine trajectory solver |
-| Rover movement | Simplified kinematics on procedural height field | Battery, slope and boundary checks; no suspension or rock collision |
-| Terrain and landing coordinates | User-supplied procedural terrain | Local x/z survey coordinates, not geographic Jezero reconstruction |
-| DONKI reports | NASA feeds through optional Python service | Required startup data and recorded player go/no-go review; no calibrated physical effect |
-| Imported Horizons state vectors | Direct download by the launcher for new Mars runs | Official endpoint and response validated; previously saved packs are historical |
-| Intermediate geometry and range | Application Hermite interpolation, vector norm | Derived estimate; dense-reference accuracy validation pending |
-| Ideal communication delay | Instantaneous geometric range / 299792.458 km/s | Used for game Earth reception time; excludes retarded light time, processing and link availability |
-| Hubble, rocket and rover visuals | Supplied reference scene/model assets | Visual stand-ins; not verified engineering assemblies |
+| Earth hardware, mass, cost, power, storage and tier values | Authored `data/catalog.json` | Game settings; not manufacturer specifications unless explicitly cited. |
+| Earth orbit | Two-body Keplerian propagation with supported orbital elements | Derived trajectory for the assumed initial state and central-body gravity; omits perturbations and orbit determination. |
+| Earth-fixed coordinates | Inertial-to-Earth-fixed transformation using a GMST approximation | Approximate ground track, not precision Earth orientation. |
+| Target access and station contacts | Spherical Earth geometry and sampled visibility/elevation against virtual catalogue nodes | Derived from the game orbit and synthetic targets/virtual ground stations; not operational coverage. Window boundaries are approximate to the sampling interval. |
+| Earth eclipse | Cylindrical Earth-shadow approximation | Geometry-derived educational eclipse timing; no penumbra/extended solar-disc or high-fidelity lighting effects. |
+| Volta Basin Floodwatch targets | Default: synthetic 720-tile scenario. Optional: imported UNOSAT product 3705 GeoJSON profile changes the target centre/radius used for access windows. | Imported geometry is a historical preliminary observation reduced to a bounding-circle access approximation. The 720 scored tiles remain synthetic; no polygon-level area/coverage scoring or current emergency assessment is claimed. |
+| SAR | Ideal slant/ground-range resolution and simplified swath/incidence/azimuth estimates | Derived from catalogued bandwidth, antenna and geometry assumptions; not SAR image formation, radiometry or validated instrument performance. |
+| RF communication | Free-space path loss, EIRP, received power, thermal noise/SNR and Shannon-capacity upper bound | Derived ideal link estimate, limited by authored hardware rate; omits practical coding, margins, antenna patterns, atmosphere and interference. |
+| Power/battery | Rated array generation with authored sun-incidence/degradation factor, cylindrical eclipse, charge/discharge efficiency and capacity bounds | Deterministic energy estimate; not cell electrochemistry, power-system design or flight telemetry. |
+| Thermal | Single lumped node with radiative loss and design-point heater estimate | Educational equilibrium/transient approximation; not a multi-node thermal network. |
+| Attitude/pointing | Off-nadir and slew/settle constraints from authored envelopes | Planning gate only; no full attitude propagation, actuators, control loops or jitter model. |
+| Propulsion and launch | Tsiolkovsky rocket equation and authored launch/payload/fairing constraints | Ideal mass-ratio estimate; no ascent simulation, staging losses or verified provider performance curve. |
+| NASA DONKI | NASA/CCMC reports when online retrieval is enabled | Observed event summaries used as optional planning context. No local dose, flux, forecast or calibrated hardware risk model; no effect on physics or score. |
+| Mars entry/descent/landing | Deterministic point-mass educational model with exponential atmosphere and simplified phases | Illustrative EDL profile, not validated against a flown trajectory; omits multiple flight-critical effects and certified guidance. |
+| Mars relay | Two-body reference orbit and sampled visibility against an authored Jezero training-site coordinate | Geometry-derived educational windows; no operational orbiter, insertion/transfer, perturbations or validated relay network. |
+| Horizons geometry | NASA/JPL Horizons state vectors (Mars relative to Earth geocenter) when a valid pack is separately acquired | Sourced geocentric vectors; client interpolation and range/delay are derived. Not spacecraft telemetry, a Mars relay-orbit ephemeris or station visibility. |
+| Ideal Earth–Mars delay | Interpolated geocentric range divided by speed of light | Simplified vacuum one-way delay; omits retarded time, relay/processing delay and link availability. |
+| Mars rover dynamics | Simplified acceleration/braking, grade, rolling resistance, traction and slope envelope over procedural terrain | Not multibody dynamics, suspension simulation, wheel-soil terramechanics or validated rover telemetry. |
+| Mars terrain / landing area | Procedural local terrain surface and authored local scene coordinates | Visually representative training terrain; not a georeferenced elevation product or validated landing-site map. |
+| 3D spacecraft and planetary visuals | Project-authored procedural scene code and bundled Three.js; see `ASSET_PROVENANCE.md` | Illustrative only; no NASA flight model, manufacturer assembly or measured planetary surface is claimed. Removed attachment-derived assets are not part of this release. |
 
-A 500/700 km label does not make the repeating orbit schedule a propagated solution. Hubble is a telescope visualization used at the user's request for the Earth mission, not a radar Earth-observation platform. Fairing checks compare a game envelope; they do not test mesh collisions. Scene altitude is compressed for visibility while the HUD displays the illustrative mission timeline.
+## Model versioning
 
-See [NASA_DATA.md](NASA_DATA.md) for the request specification and [AUDIT_REVIEW.md](AUDIT_REVIEW.md) for model-specific acceptance tests. Synthetic flood coverage, authored orbital and relay schedules, hardware parameters, descent and terrain remain engineering work. The launch gate and Mars signal delay have fixture-based software validation.
+New mission saves retain the application release, simulation-model version and applicable dataset identifiers. Earth runs pin their model/catalogue assumptions. Mars runs can retain the exact validated Horizons pack and the associated data/interpolation identifiers. Legacy saves must not silently be reinterpreted under newer model rules.
 
-| Derived parameter | Equation or data source | Uncertainty and evidence |
-| --- | --- | --- |
-| Earth–Mars range | Norm of NASA/JPL Horizons geometric position in km | Parsed exact source epochs. Independent interpolation benchmark pending. |
-| Ideal signal delay | Range divided by the conventional speed of light, 299,792.458 km/s | Excludes moving receiver, propagation medium, relay and processing. Analytic conversion and reception deadline tests pass. |
-| DONKI Kp summary | Maximum numeric Kp value reported for an event | Preserves unknowns. Report latency and observing coverage affect interpretation. |
-| Equipment, contacts and flood targets | Authored catalogue and scenario rules | No engineering uncertainty estimates assigned. |
+## Validation boundary
 
-[Horizons API](https://ssd-api.jpl.nasa.gov/doc/horizons.html) · [NASA DONKI](https://ccmc.gsfc.nasa.gov/tools/DONKI/) · [BIPM SI definitions](https://www.bipm.org/en/measurement-units/si-defining-constants)
+Automated tests check equation properties, bounds, deterministic step behavior, save/replay integrity, data schema and scenario invariants. The tests do not establish physical accuracy against flight data. Open validation work includes an independent ephemeris/GMAT reference, actual flood-observation data, verified ground-station coordinates, manufacturer/mission hardware specifications, SAR calibration references, real telemetry and Mars EDL/rover validation.
+
+See [ENGINEERING_MODELS.md](ENGINEERING_MODELS.md), [NASA_DATA.md](NASA_DATA.md), [ASSET_PROVENANCE.md](ASSET_PROVENANCE.md) and [VALIDATION.md](VALIDATION.md).

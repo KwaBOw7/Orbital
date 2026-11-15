@@ -40,6 +40,45 @@ class AdapterTests(unittest.TestCase):
         self.assertAlmostEqual(sample['idealDelaySeconds'], 166.78204759907604, places=10)
         self.assertEqual(result['manifest']['timeScale'], 'UTC')
 
+    def test_new_pack_records_release_dataset_and_interpolation_versions(self):
+        p=pack();m=p['manifest']
+        self.assertEqual(m['compatibleGameVersions'],[n.APP_VERSION])
+        self.assertEqual(m['applicationVersion'],n.APP_VERSION)
+        self.assertEqual(m['datasetVersion'],n.DATASET_VERSION)
+        self.assertEqual(m['interpolationVersion'],n.INTERPOLATION_VERSION)
+        self.assertIn('cubic Hermite', ' '.join(m['qualityFlags']))
+        self.assertEqual(n.validate(p),p)
+
+    def test_legacy_pack_compatibility_remains_supported(self):
+        p=pack();m=p['manifest']
+        m['compatibleGameVersions']=['0.2.0']
+        for k in ['applicationVersion','datasetVersion','interpolationVersion']:
+            m.pop(k,None)
+        m['adapterVersion']='horizons-vector-1'
+        self.assertEqual(n.validate(p),p)
+
+    def test_v033_pack_compatibility_is_narrow_and_explicit(self):
+        p=pack();m=p['manifest']
+        m['adapterVersion']='horizons-vector-1'
+        for key in ['applicationVersion','compatibleGameVersions','datasetVersion','interpolationVersion']:
+            m.pop(key,None)
+        self.assertEqual(n.validate(p),p)
+        m['adapterVersion']='unknown-adapter'
+        with self.assertRaises(ValueError):
+            n.validate(p)
+
+    def test_dense_reference_step_and_benchmark_contract(self):
+        params=n.parameters('2026-11-14',1,'5 m')
+        self.assertEqual(params['STEP_SIZE'],"'5 m'")
+        dense_rows=[]
+        for i in range(289):
+            t=datetime(2026,11,14,tzinfo=timezone.utc)+timedelta(minutes=5*i)
+            dense_rows.append({'epochUtc':n.iso(t),'positionKm':[3e7,4e7,0.0],'velocityKmS':[0.0,0.0,0.0],'rangeKm':5e7,'idealDelaySeconds':5e7/n.C_KM_S})
+        report=n.benchmark_geometry(pack(),dense_rows)
+        self.assertEqual(report['interiorEpochsCompared'],264)
+        self.assertLess(report['positionErrorKm']['max'],1e-6)
+        self.assertIn('not an independent-provider validation',report['interpretation'])
+
     def test_wrong_signature_and_context_rejected(self):
         for old, new in [('1.3', '1.4'), ('ICRF', 'ECLIPJ2000'), ('Earth (399)', 'Sun (10)'), ('KM-S', 'AU-D'), ('Calendar Date (UT)', 'Calendar Date (TDB)'), ('$$EOE', '')]:
             raw = json.dumps(fixture()).replace(old, new)
@@ -53,7 +92,7 @@ class AdapterTests(unittest.TestCase):
                 n.make_pack(data,n.parameters('2026-11-14',1))
 
     def test_pack_corruption_incompatible_and_executable_assets(self):
-        for mutate in [lambda p:p['manifest'].update(schemaVersion=2),lambda p:p['manifest'].update(assets=[{'file':'../../run.sh'}]),lambda p:p.update(data=p['data']+' '),lambda p:p['manifest'].update(rawUnits={'position':'au','velocity':'km/s'}),lambda p:p['manifest'].update(formatId='orbital.earth-mars-v99')]:
+        for mutate in [lambda p:p['manifest'].update(schemaVersion=2),lambda p:p['manifest'].update(assets=[{'file':'../../run.sh'}]),lambda p:p.update(data=p['data']+' '),lambda p:p['manifest'].update(rawUnits={'position':'au','velocity':'km/s'}),lambda p:p['manifest'].update(compatibleGameVersions=['99.0.0'])]:
             p=pack();mutate(p)
             with self.assertRaises(ValueError):n.validate(p)
 
@@ -69,7 +108,7 @@ class AdapterTests(unittest.TestCase):
             return io.BytesIO(json.dumps(fixture()).encode())
         result=n.retrieve(n.parameters('2026-11-14',1),'test@example.invalid',opener=opener,sleeper=sleeps.append)
         self.assertEqual(result,fixture());self.assertEqual(sleeps,[2,2]);self.assertEqual(len(calls),3)
-        self.assertIn('ORBITAL/0.3.3',calls[0].get_header('User-agent'))
+        self.assertIn('ORBITAL/'+n.APP_VERSION,calls[0].get_header('User-agent'))
         self.assertNotIn('api_key',calls[0].full_url)
 
     def test_retries_are_bounded_on_timeout_and_server_failure(self):

@@ -1,0 +1,47 @@
+% ORBITAL educational reference orbit for GMAT.
+% Run this script in NASA GMAT, then preserve the generated OEM as a
+% separate, user-acquired reference artifact. This is a point-mass Earth
+% two-body comparison case, not a high-fidelity operational orbit.
+
+Create Spacecraft ORBITAL_LEO;
+ORBITAL_LEO.DateFormat = UTCGregorian;
+ORBITAL_LEO.Epoch = '14 Nov 2026 00:00:00.000';
+ORBITAL_LEO.CoordinateSystem = EarthMJ2000Eq;
+ORBITAL_LEO.DisplayStateType = Keplerian;
+ORBITAL_LEO.SMA = 7078.137;
+ORBITAL_LEO.ECC = 0.001;
+ORBITAL_LEO.INC = 51.6;
+ORBITAL_LEO.RAAN = 0.0;
+ORBITAL_LEO.AOP = 0.0;
+ORBITAL_LEO.TA = 0.0;
+
+Create ForceModel ORBITAL_POINT_MASS;
+ORBITAL_POINT_MASS.CentralBody = Earth;
+ORBITAL_POINT_MASS.PrimaryBodies = {Earth};
+ORBITAL_POINT_MASS.PointMasses = {};
+ORBITAL_POINT_MASS.GravityField.Earth.Degree = 0;
+ORBITAL_POINT_MASS.GravityField.Earth.Order = 0;
+ORBITAL_POINT_MASS.GravityField.Earth.PotentialFile = 'JGM2.cof';
+ORBITAL_POINT_MASS.GravityField.Earth.TideModel = 'None';
+ORBITAL_POINT_MASS.Drag = None;
+ORBITAL_POINT_MASS.SRP = Off;
+ORBITAL_POINT_MASS.RelativisticCorrection = Off;
+
+Create Propagator ORBITAL_PROP;
+ORBITAL_PROP.FM = ORBITAL_POINT_MASS;
+ORBITAL_PROP.Type = RungeKutta89;
+ORBITAL_PROP.InitialStepSize = 10;
+ORBITAL_PROP.Accuracy = 1e-12;
+
+Create EphemerisFile ORBITAL_OEM;
+ORBITAL_OEM.Spacecraft = ORBITAL_LEO;
+ORBITAL_OEM.CoordinateSystem = EarthMJ2000Eq;
+ORBITAL_OEM.Filename = 'ORBITAL-GMAT-LEO-reference.oem';
+ORBITAL_OEM.FileFormat = CCSDS-OEM;
+ORBITAL_OEM.EpochFormat = UTCGregorian;
+ORBITAL_OEM.StepSize = 60;
+ORBITAL_OEM.InitialEpoch = '14 Nov 2026 00:00:00.000';
+ORBITAL_OEM.FinalEpoch = '14 Nov 2026 03:00:00.000';
+
+BeginMissionSequence;
+Propagate ORBITAL_PROP(ORBITAL_LEO) {ORBITAL_LEO.ElapsedDays = 0.125};

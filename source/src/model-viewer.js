@@ -1,19 +1,25 @@
 /* The reference scenes run only while their dialog is open. */
 const OrbitalModels = (() => {
   const models = {
-    earth: {title:'Earth · interactive globe',description:'Your supplied procedural Earth artwork. Geography is illustrative.',scene:earthScene,controls:[['bs','Spin',true],['bc','Clouds',true],['bn','Light night side',false],['bi','Zoom in',false],['bo','Zoom out',false]]},
-    moon: {title:'Moon · cratered surface',description:'Your supplied procedural Moon. Drag to inspect the relief; this is not a measured elevation map.',scene:moonScene,controls:[]},
-    lander: {title:'Lunar lander · model preview',description:'Explore the supplied lander and preview its descent engine. The lunar mission is still planned.',scene:landerScene,controls:[['fire','Fire descent engine',false]]},
-    'mars-globe': {title:'Mars · surface overview',description:'Your supplied Mars globe with illustrative relief and landmark pins. Surface driving uses the mountain terrain.',scene:marsGlobeScene,controls:[['bRelief','Exaggerate relief',false],['bPins','Landmarks',true],['bSpin','Auto-rotate',true]]},
-    hubble: {
-      title: 'Hubble · Earth observation reference',
-      description: 'Explore Hubble’s hardware. Your Earth observation satellite uses the parts selected in the builder.',
-      scene: hubbleScene,
+    earth: {title:'Earth · interactive globe',description:'Original procedural Earth illustration. Coastlines are decorative and do not represent mapped geography.',scene:earthScene,controls:[['bs','Spin',true],['bc','Clouds',true],['bn','Light night side',false],['bi','Zoom in',false],['bo','Zoom out',false]]},
+    moon: {title:'Moon · cratered surface',description:'Original procedural cratered sphere. Relief is illustrative and is not a measured elevation map.',scene:moonScene,controls:[]},
+    lander: {title:'Lunar lander · model preview',description:'Explore an original schematic lander illustration and preview its engine. The lunar mission is still planned.',scene:landerScene,controls:[['fire','Fire descent engine',false]]},
+    'mars-globe': {title:'Mars · surface overview',description:'Original procedural Mars globe with decorative relief and reference labels. It is not a measured global elevation map.',scene:marsGlobeScene,controls:[['bRelief','Exaggerate relief',false],['bPins','Landmarks',true],['bSpin','Auto-rotate',true]]},
+    sar: {
+      title: 'Floodwatch-01 · illustrative SAR spacecraft',
+      description: 'Explore an original schematic radar-spacecraft illustration. It is not a specific flight spacecraft or an engineering assembly.',
+      scene: sarScene,
       controls: [['bExplode', 'Exploded view', false], ['bEarth', 'Earth backdrop', true], ['bSpin', 'Auto-rotate', true]],
     },
+    observatory: {
+      title: 'Space observatory · illustrative telescope',
+      description: 'An original generic optical-observatory illustration. It is not Hubble, a specific flight spacecraft or an engineering assembly.',
+      scene: spaceObservatoryScene,
+      controls: [['bSpin', 'Auto-rotate', true]],
+    },
     rocket: {
-      title: 'Rocket · launch vehicle reference',
-      description: 'Explore a generic launcher and preview its engine. Use the preflight screen to launch the mission.',
+      title: 'Launch vehicle · schematic',
+      description: 'Explore an original generic multistage launch-vehicle illustration. Geometry and performance are not manufacturer specifications.',
       scene: rocketScene,
       controls: [['bLaunch', 'Engine preview', false], ['bExplode', 'Exploded view', false], ['bSpin', 'Auto-rotate', true]],
     },
@@ -75,3 +81,5 @@ const OrbitalModels = (() => {
 
   return {open,get:key=>models[key]};
 })();
+// Explicit global export keeps classic-script consumers and test harnesses consistent.
+globalThis.OrbitalModels = OrbitalModels;

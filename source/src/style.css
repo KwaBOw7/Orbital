@@ -44,3 +44,18 @@
 @media(max-width:580px){.hero{height:580px}.hero-copy{max-width:none;padding:22px}.hero-copy h2{font-size:30px;margin:14px 0 10px}.hero-copy .btn{margin-top:16px}.hero-globe{top:265px;bottom:0;width:100%;height:auto}.hero-globe .inline-model-stage{height:100%}.hero-bottom{display:none}.hero-id{top:285px;right:14px}.future-grid{grid-template-columns:1fr}.model-card .inline-model-stage{height:240px}}
 
 .illustrative-model{position:absolute;top:16px;left:16px;pointer-events:none}
+
+/* Respect the operating-system reduced-motion preference across the entire interface. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
+
+/* Honour the operating-system motion preference across the whole application. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

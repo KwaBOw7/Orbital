@@ -1,0 +1,14 @@
+release/
+__pycache__/
+*.pyc
+*.sqlite
+*.sqlite-*
+.env
+.env.*
+nasa_api.txt
+*api_key*
+earth-mars-pack.json
+.local-data/
+
+API.txt
+api.txt

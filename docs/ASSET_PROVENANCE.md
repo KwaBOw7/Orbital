@@ -1,39 +1,38 @@
-# ORBITAL v0.3.3 asset provenance
+# ORBITAL v0.3.4 — Asset provenance and rights inventory
 
-Recorded identities describe what is in this release. A SHA-256 hash verifies file identity, not authorship, licensing or engineering accuracy. No asset is newly certified as a NASA model.
+Recorded identities describe the files actually included in this source release. A SHA-256 hash proves file identity, not authorship or license. The original attachment-derived model scripts, source HTML references, rover STL and legacy Earth/Mars generated image files have been removed from v0.3.4. They are not included in the release ZIP or standalone HTML.
 
-| Asset | Recorded origin | Rights / fidelity status | SHA-256 |
-| --- | --- | --- | --- |
-| `assets/models/mars_rover.stl` | User attachment mars_rover.stl | Original author/source and redistribution permission unverified | `0b11f8f64198e91efe231259bbcb8085e134a1516ee5d91b5ac49cd63649e619` |
-| `assets/models/hubble.js` | Adapted from user attachment Hubble Space Telescope 3D Model.html | Original author/source and redistribution permission unverified | `f78e54623251b8e4c39b0dee9ca8b1ae2849ddf7ad3d42b9734527559f64ba29` |
-| `assets/models/rocket.js` | Adapted from user attachment Rocket 3D Model.html | Original author/source and redistribution permission unverified | `4bb478344cf954e567774bbcd687977ae0cbec006899bcdf5dcccc78b89e326e` |
-| `assets/models/mars-terrain.js` | Adapted from user attachment Mars Mountain View.html | Original author/source and redistribution permission unverified | `c979d30fc454916bebbb85b2714d28c5b45e63d8052465c2b0a84b00a8561835` |
-| `assets/vendor/three-r128.min.js` | Bundled Three.js r128 | MIT; local three-LICENSE.txt | `9274bbcec8d96168626c732b5d31c775aa8cfb7eaa0599bec0c175908a2c1ce2` |
-| `assets/earth.webp` | Earlier generated illustration | Generated artwork; no scientific geographic authority | `eeecfecf3af3747cfe4158cb245cd26be6211dc79e38b793f61ffb8cb53bcdee` |
-| `assets/mars.webp` | Earlier generated illustration | Legacy generated artwork; current Mars view uses terrain | `9b64f21d55cf1283d1034cebaf467a6ed5cdca67c79eef708b1bf50508cf937e` |
+## Current bundled inventory
 
-The original author, download URL and license for each supplied model must be obtained before claiming public redistribution clearance. Keeping these user-provided assets for this local iteration does not resolve that gate. Adaptations and add-on geometry are illustrative. The file contents do not establish attachment interfaces, manufacturing tolerances or a geographic coordinate reference.
+| File | Origin / rights status | SHA-256 |
+|---|---|---|
+| `assets/models/earth-texture.js` | Original project-authored procedural illustration code; not a NASA model; no measured geometry or engineering accuracy claimed. | `3a778eb223498501fb18e957de922a68c1c1b32121b810b18bd22f8b959bfcbc` |
+| `assets/models/earth.js` | Original project-authored procedural illustration code; not a NASA model; no measured geometry or engineering accuracy claimed. | `acc9a828d31bd0de923c664568d7ab9ddd9d725942f23be1ae75c14ca9e45c8c` |
+| `assets/models/lander.js` | Original project-authored procedural illustration code; not a NASA model; no measured geometry or engineering accuracy claimed. | `8d4f7c1ad8651b4e0dd9ea4154e7f5e8a0b5d565027bde947a49038082fc9c27` |
+| `assets/models/mars-globe.js` | Original project-authored procedural illustration code; not a NASA model; no measured geometry or engineering accuracy claimed. | `e8ba1e6e922c0be7dbf556faed0aeaa397557eb35cdb298c892e25e12d3ab367` |
+| `assets/models/mars-terrain.js` | Original project-authored procedural illustration code; not a NASA model; no measured geometry or engineering accuracy claimed. | `c8bd940af52faf0dfc8e78a3559fe5a7872f00c76976e70fe3942dbb3e4114ea` |
+| `assets/models/moon.js` | Original project-authored procedural illustration code; not a NASA model; no measured geometry or engineering accuracy claimed. | `9418f3e7a4ebdcdedd62d148ab97f377e3394a01d4488771b17ba4c21f98243c` |
+| `assets/models/observatory.js` | Original project-authored procedural illustration code; not a NASA model; no measured geometry or engineering accuracy claimed. | `7f509cdfcafd25421d9a3f4bf03d79bbd207148ed539427b2a9fac8890de0d64` |
+| `assets/models/rocket.js` | Original project-authored procedural illustration code; not a NASA model; no measured geometry or engineering accuracy claimed. | `7ef9cffb3e707545c69258dbdc00f78c99f2cb2a07841195b50bdba9898c5108` |
+| `assets/models/sar.js` | Original project-authored procedural illustration code; not a NASA model; no measured geometry or engineering accuracy claimed. | `b872714fa1db76e9b73b19ae5e97968ec83b88c938f8e07f346973feae119dee` |
+| `assets/vendor/three-LICENSE.txt` | Third-party license notice for Three.js; MIT. | `7dddf7c5b8fd10ee654db8857d75d104b5557889aa5a91fc4ca545ea7c07062f` |
+| `assets/vendor/three-r128.min.js` | Third-party Three.js r128 runtime; MIT license in adjacent three-LICENSE.txt. | `9274bbcec8d96168626c732b5d31c775aa8cfb7eaa0599bec0c175908a2c1ce2` |
 
-Public-release acceptance: preserve source URL and version, explicit license/permission, attribution requirements, original checksum, transformations made, units/axes and known deviations. Replace any asset whose rights cannot be established.
+## Procedural scene code
 
-## v0.3.2 supplied scene additions
+The scene files in `assets/models/` were newly authored for ORBITAL as procedural Three.js geometry/material construction. They do not embed the removed attachment HTML, STL mesh, image textures or remote model files. The generic optical observatory is explicitly not Hubble and is not represented as a particular flight spacecraft. The SAR scene is an illustrative radar-spacecraft schematic. The rocket, lander and rover are visual teaching aids, not vendor models, engineering assemblies or performance references.
 
-All four originals are retained under `assets/models/references/`. The build embeds adapted JavaScript and bundled Three.js, not the original HTML CDN script tags. No external texture is fetched. Original authorship and redistribution permission remain unverified.
+## Third-party dependency
 
-| Original attachment | Original SHA-256 | Adaptation |
-| --- | --- | --- |
-| 3D Earth.html | `170bef2e03bf8dd02914da37f3ec36336365ae0ac7fe61586499dba96bb58f7b` | `assets/models/earth.js` |
-| 3D Moon.html | `764718e135f686a7afff9810a98942c08f13c44c37980c6d42fc1286290447ae` | `assets/models/moon.js` |
-| 3D Lunar Lander.html | `560758b8e7e63564b4ea579461a4521731a29494ca58f90e639fcfd43ec02daf` | `assets/models/lander.js` |
-| Mars 3D Surface.html | `3de7e664a511148741c848f62dea251e8b68108b554e6bd356653c805df8c3dc` | `assets/models/mars-globe.js` |
+Three.js r128 is bundled locally to preserve offline operation. Its MIT license is supplied at `assets/vendor/three-LICENSE.txt` and copied to the package root as `THIRD-PARTY-LICENSE.txt`. The Three.js license applies to that dependency, not to the rest of the project.
 
-`python3 scripts/adapt_visual_models.py` regenerates these adaptations. Changes: scope renderer and controls to each container; resize/picking offsets; explicit event, animation, geometry, texture and observer cleanup; bounded mesh densities; reduced-motion handling; procedural Earth texture cache at reduced resolution. Procedural outlines, noise, relief and lander geometry come from the supplied files and are illustrative. The existing Hubble adaptation now uses the supplied Earth texture. Reuploaded rover/Hubble/rocket/mountain sources match their earlier counterparts byte for byte.
+## Project license scope
 
-Current adapted hashes:
+The root `LICENSE` applies to original ORBITAL code, documentation and project-authored procedural illustrations only. It does not grant rights to third-party dependencies, NASA insignia/names/marks, user-provided content, or data products. No NASA endorsement is implied. External datasets must retain their own attribution, terms, usage constraints and source hashes when imported.
 
-- `earth-texture.js`: `ba08e3fb0daa94f992e74447f34a207296290ec94c7b4454a083a7919cb7cc5c`
-- `earth.js`: `0427c7504e931c304853f4fcfdd35aecc7fd8d9038822637ec6e5225493aa390`
-- `moon.js`: `234493318229fcebe67c7cd0308744491af86f8b587b4ccde66f541d7e187d47`
-- `lander.js`: `1349e5c1f3a9a248cb59f82652af7854dbaa03e9efb4fa0bef1afed293bc50be`
-- `mars-globe.js`: `a771997bf3e581febc0b310cdcd4096920cdc719cf1f9aaf15d7d724cd08ccd8`
-- `hubble.js`: `f78e54623251b8e4c39b0dee9ca8b1ae2849ddf7ad3d42b9734527559f64ba29`
+## Release acceptance
+
+- Do not restore removed user-supplied reference files to a public package unless the original source and redistribution permission are established.
+- When new assets are added, record source URL, author, version, license, attribution, original checksum, transformations, units/axes and known fidelity limits.
+- Treat procedural appearance as illustrative. A SHA-256 digest is not evidence of scientific accuracy, geographic registration or ownership.
+- The current procedural Mars terrain is not a georeferenced elevation model. A real landing-site terrain product remains an external data acquisition and integration task.

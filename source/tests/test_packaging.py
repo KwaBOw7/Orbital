@@ -1,4 +1,4 @@
-"""Generated launcher contracts and Linux service startup with mocked provider data."""
+"""Generated launcher contracts and real Linux offline service startup."""
 import importlib.util
 import json
 import os
@@ -21,21 +21,10 @@ class PackagingTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory(prefix='orbital launcher ')
         self.root=Path(self.temp.name);pkg.write_launchers(self.root)
     def tearDown(self):self.temp.cleanup()
-    def test_play_launchers_use_same_nasa_gate_and_missing_key_never_prints_url(self):
-        for extension in ('Linux.sh','macOS.command','Windows.cmd'):
-            self.assertEqual((self.root/('Play-'+extension)).read_bytes(),(self.root/('Start-NASA-'+extension)).read_bytes())
-        shutil.copy2(ROOT/'launcher.py',self.root/'launcher.py')
-        (self.root/'tools').mkdir()
-        shutil.copy2(ROOT/'tools/nasa_data.py',self.root/'tools/nasa_data.py')
-        result=subprocess.run(['/bin/sh',str(self.root/'Play-Linux.sh'),'--port','0','--no-browser'],
-                              capture_output=True,text=True,timeout=6)
-        self.assertEqual(result.returncode,1)
-        self.assertIn('API.txt is missing',result.stderr)
-        self.assertNotIn('127.0.0.1:',result.stdout)
-        result=subprocess.run(['/bin/sh',str(self.root/'Play-Linux.sh'),'--offline'],
-                              capture_output=True,text=True,timeout=6)
-        self.assertEqual(result.returncode,1)
-        self.assertIn('verification is required',result.stderr)
+    def test_offline_script_opens_html_without_starting_python(self):
+        bindir=self.root/'bin';bindir.mkdir();stub=bindir/'xdg-open';stub.write_text('#!/bin/sh\nprintf "%s" "$1"\n');stub.chmod(0o755)
+        result=subprocess.run(['/bin/sh',str(self.root/'Play-Linux.sh')],env={**os.environ,'PATH':str(bindir)+':/usr/bin:/bin'},capture_output=True,text=True,check=True)
+        self.assertEqual(result.stdout,str(self.root/'index.html'))
     def test_missing_python_has_actionable_error_and_macos_script_parses(self):
         result=subprocess.run(['/bin/sh',str(self.root/'Start-NASA-Linux.sh')],env={**os.environ,'PATH':''},capture_output=True,text=True)
         # dirname is external; use a controlled PATH containing only that utility.
@@ -44,25 +33,26 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(result.returncode,1);self.assertIn('Python 3 is required',result.stderr)
         subprocess.run(['/bin/sh','-n',str(self.root/'Start-NASA-macOS.command')],check=True)
         windows=(self.root/'Start-NASA-Windows.cmd').read_text();self.assertIn('py -3 "%~dp0launcher.py" %*',windows);self.assertIn('python "%~dp0launcher.py" %*',windows)
-    def test_nasa_linux_launcher_serves_game_only_after_verified_provider_responses(self):
-        (self.root/'tools').mkdir()
-        shutil.copy2(ROOT/'tools/nasa_data.py',self.root/'tools/nasa_data.py')
-        shutil.copy2(ROOT/'launcher.py',self.root/'original.py')
-        (self.root/'launcher.py').write_text(
-            "import original as app\n"
-            "ReportSource = app.Reports\n"
-            "app.Reports = lambda key, cache: ReportSource(key, cache, lambda *args: [])\n"
-            "raise SystemExit(app.main())\n")
-        (self.root/'API.txt').write_text('TEST_KEY_ONLY_12345')
-        (self.root/'online.html').write_text('<p>gated service fixture</p>')
-        process=subprocess.Popen(['/bin/sh',str(self.root/'Play-Linux.sh'),'--port','0','--no-browser','--cache-dir',str(self.root/'cache')],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+    def test_project_and_third_party_licenses_are_copied_to_release_root_and_source(self):
+        with tempfile.TemporaryDirectory(prefix='orbital source copy ') as temp:
+            target=Path(temp)
+            pkg.copy_sources(target)
+            for name in ('LICENSE','NOTICE','THIRD-PARTY-NOTICES.md'):
+                self.assertTrue((target/name).is_file(),name)
+        with tempfile.TemporaryDirectory(prefix='orbital root metadata ') as temp:
+            target=Path(temp)
+            pkg.copy_root_metadata(target)
+            for name in ('LICENSE','NOTICE','THIRD-PARTY-NOTICES.md'):
+                self.assertTrue((target/name).is_file(),name)
+    def test_nasa_linux_launcher_starts_real_offline_service_in_spaced_path(self):
+        shutil.copy2(ROOT/'launcher.py',self.root/'launcher.py');shutil.copy2(ROOT/'version.json',self.root/'version.json');(self.root/'online.html').write_text('<p>offline service fixture</p>')
+        process=subprocess.Popen(['/bin/sh',str(self.root/'Start-NASA-Linux.sh'),'--port','0','--offline','--no-browser','--cache-dir',str(self.root/'cache')],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
         try:
             ready,_,_=select.select([process.stdout],[],[],8);self.assertTrue(ready,'launcher did not print a startup URL')
-            line=process.stdout.readline()+process.stdout.readline();match=re.search(r'http://127\.0\.0\.1:\d+',line);self.assertIsNotNone(match,line);base=match.group(0)
+            line=process.stdout.readline();match=re.search(r'http://127\.0\.0\.1:\d+',line);self.assertIsNotNone(match,line);base=match.group(0)
             with urlopen(base+'/api/nasa/status',timeout=3) as response:status=json.load(response)
-            self.assertTrue(status['ready'])
-            self.assertNotIn('TEST_KEY_ONLY',json.dumps(status))
-            with urlopen(base,timeout=3) as response:self.assertIn(b'gated service fixture',response.read())
+            self.assertEqual(status['mode'],'offline')
+            with urlopen(base,timeout=3) as response:self.assertIn(b'offline service fixture',response.read())
         finally:
             process.send_signal(signal.SIGINT)
             try:process.communicate(timeout=3)

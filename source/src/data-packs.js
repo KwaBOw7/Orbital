@@ -16,8 +16,14 @@ const epoch=s=>{if(typeof s!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$
 function validate(pack){
  if(!pack||Object.keys(pack).sort().join(',')!=='data,manifest'||JSON.stringify(pack).length>MAX)fail('Invalid or oversized data pack');
  const m=pack.manifest;if(!m||m.schemaVersion!==1||m.packVersion!==1||m.kind!=='earth-mars-geometry')fail('Incompatible data pack');
- const legacy=m.formatId===undefined&&m.interpolation===undefined&&JSON.stringify(m.compatibleGameVersions)==='["0.2.0"]';
- if(!legacy&&(m.formatId!=='orbital.earth-mars-v1'||m.interpolation!=='cubic-hermite-position-velocity-v1'))fail('Unsupported pack format or interpolation');
+ const versions=JSON.stringify(m.compatibleGameVersions);
+ const legacy=m.formatId===undefined&&m.interpolation===undefined&&versions==='["0.2.0"]';
+ const previousCompat=m.formatId===undefined&&m.interpolation===undefined&&versions==='["0.3.1","0.3.2"]';
+ // v0.3.3 predates explicit application/dataset/interpolation compatibility fields.
+ // Admit only its exact format, interpolation and adapter fingerprint; current packs remain strict.
+ const legacyV033=m.formatId==='orbital.earth-mars-v1'&&m.interpolation==='cubic-hermite-position-velocity-v1'&&m.applicationVersion===undefined&&m.compatibleGameVersions===undefined&&m.datasetVersion===undefined&&m.interpolationVersion===undefined&&m.adapterVersion==='horizons-vector-1';
+ const current=m.formatId==='orbital.earth-mars-v1'&&m.interpolation==='cubic-hermite-position-velocity-v1'&&m.applicationVersion==='0.3.4'&&m.datasetVersion==='jpl-horizons-mars-earth-vectors-1.0.0'&&m.interpolationVersion==='cubic-hermite-vector-1.0.0'&&versions==='["0.3.4"]';
+ if(!legacy&&!previousCompat&&!legacyV033&&!current)fail('Unsupported pack format, application or interpolation version');
  if(typeof pack.data!=='string'||/[^\x00-\x7f]/.test(pack.data)||m.dataBytes!==pack.data.length||m.dataSha256!==sha256(pack.data)||m.packId!=='mars-'+m.dataSha256.slice(0,16))fail('Data checksum mismatch');
  if(m.endpoint!=='https://ssd.jpl.nasa.gov/api/horizons.api'||m.documentation!=='https://ssd-api.jpl.nasa.gov/doc/horizons.html'||m.frame!=='ICRF'||m.origin!=='Earth geocenter (399)'||m.timeScale!=='UTC'||!Array.isArray(m.assets)||m.assets.length||m.revision?.apiVersion!=='1.3')fail('Unsupported source or geometry');
  if(m.rawUnits?.position!=='km'||m.rawUnits?.velocity!=='km/s'||m.normalizedUnits?.range!=='km'||m.normalizedUnits?.idealDelay!=='s')fail('Unsupported units');

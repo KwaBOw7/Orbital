@@ -1,4 +1,4 @@
-/* Container-scoped lifecycle for the supplied standalone 3D scenes. */
+/* Container-scoped lifecycle for the original standalone 3D scenes. */
 function orbitalSceneRuntime(view, renderer, canvas) {
   let stopped=false;
   const frames=new Set(),observers=[],listeners=[],scenes=[];

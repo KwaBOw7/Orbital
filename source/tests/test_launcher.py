@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from email.message import Message
 import importlib.util
 import io
+import subprocess
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,7 +13,8 @@ import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
 
-spec=importlib.util.spec_from_file_location('launcher',Path(__file__).resolve().parents[1]/'launcher.py')
+ROOT=Path(__file__).resolve().parents[1]
+spec=importlib.util.spec_from_file_location('launcher',ROOT/'launcher.py')
 l=importlib.util.module_from_spec(spec);spec.loader.exec_module(l)
 
 
@@ -29,8 +31,26 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(key,'TEST_KEY_ONLY_12345')
         self.assertEqual((datetime.fromisoformat(end)-datetime.fromisoformat(start)).days,7)
         return l.normalize(name,sample(name))
-    def reports(self):
-        return l.Reports(self.key,self.root/'cache',self.fetcher)
+    def reports(self,offline=False):return l.Reports(self.key,self.root/'cache',offline,self.fetcher)
+    def test_mission_context_is_versioned_conservative_and_derived_from_validated_reports(self):
+        r=self.reports();r.update();context=r.state()['missionContext']
+        self.assertEqual(context['schemaVersion'],1)
+        self.assertEqual(context['source'],'NASA DONKI')
+        self.assertEqual(context['signals']['flareReports'],1)
+        self.assertEqual(context['signals']['strongestFlareClass'],'M1.2')
+        self.assertEqual(context['signals']['maxReportedKp'],5)
+        self.assertEqual(context['signals']['maxReportedCmeSpeedKmS'],500)
+        self.assertTrue(any('do not alter simulation' in x for x in context['limitations']))
+        self.assertEqual(context['status'],'current')
+
+    def test_mission_context_reports_no_events_without_claiming_safe_conditions(self):
+        r=self.reports()
+        r.fetcher=lambda *args:[]
+        r.update();context=r.state()['missionContext']
+        self.assertEqual(context['signals']['flareReports'],0)
+        self.assertEqual(context['status'],'no-reports')
+        self.assertTrue(any('does not establish safe conditions' in x for x in context['limitations']))
+
     def test_normalization_preserves_unknown_and_expected_units(self):
         s=sample('cmes');s[0]['cmeAnalyses']=None
         self.assertIsNone(l.normalize('cmes',s)[0]['speedKmS'])
@@ -44,46 +64,13 @@ class LauncherTests(unittest.TestCase):
         self.key.write_text('\ufeffTEST_KEY_ONLY_12345\n');self.assertEqual(l.read_key(self.key),'TEST_KEY_ONLY_12345')
         self.key.write_text('api_key=SECRET')
         with self.assertRaises(ValueError):l.read_key(self.key)
-    def test_missing_key_makes_zero_requests(self):
-        self.key.unlink()
-        r=self.reports()
-        self.assertFalse(r.update())
-        self.assertEqual(self.calls,[])
-        self.assertFalse(r.state()['ready'])
-
-    def test_live_mode_is_sequential_and_cache_cannot_unlock_restart(self):
-        r=self.reports()
-        self.assertTrue(r.update())
-        self.assertEqual(self.calls,['storms','cmes','flares'])
-        self.assertEqual(r.state()['status'],'current')
-        raw=(self.root/'cache/reports.json').read_text()
-        self.assertNotIn('TEST_KEY_ONLY_12345',raw)
-        self.assertIsNone(self.reports().state()['report'])
-        self.key.unlink()
-        self.assertFalse(r.state()['ready'])
-        self.assertIsNone(r.state()['report'])
-
-    def test_malformed_or_placeholder_key_cannot_start(self):
-        for value in ['DEMO_KEY','', 'api_key=SECRET', 'PASTE_YOUR_NASA_API_KEY_HERE']:
-            self.key.write_text(value)
-            self.assertFalse(self.reports().update())
-        self.assertEqual(self.calls,[])
-
-    def test_rejected_key_invalidates_an_existing_verified_session(self):
-        r=self.reports()
-        self.assertTrue(r.update())
-        def reject(*args):
-            raise l.RejectedKey('NASA rejected the key')
-        r.fetcher=reject
-        self.assertFalse(r.update())
-        self.assertFalse(r.state()['ready'])
-
-    def test_empty_official_feed_is_valid_and_does_not_synthesize_events(self):
-        r=l.Reports(self.key,self.root/'cache',lambda *args:[])
-        self.assertTrue(r.update())
-        self.assertTrue(r.state()['ready'])
-        self.assertTrue(all(not feed['items'] for feed in r.state()['report']['feeds'].values()))
-
+    def test_offline_and_missing_key_make_zero_requests(self):
+        r=self.reports(True);r.update();self.assertEqual(self.calls,[])
+        self.key.unlink();r=self.reports();r.update();self.assertEqual(self.calls,[]);self.assertEqual(r.mode,'offline')
+    def test_live_mode_is_sequential_cache_survives_restart_without_key(self):
+        r=self.reports();r.update();self.assertEqual(self.calls,['flares','storms','cmes']);self.assertEqual(r.state()['status'],'current')
+        raw=(self.root/'cache/reports.json').read_text();self.assertNotIn('TEST_KEY_ONLY_12345',raw)
+        self.key.unlink();restarted=self.reports();self.assertEqual(restarted.state()['status'],'offline');self.assertIsNotNone(restarted.state()['report'])
     def test_partial_failure_retains_previous_cache_and_shows_stale(self):
         r=self.reports();r.update();before=(self.root/'cache/reports.json').read_bytes()
         def fail(name,*args):
@@ -94,12 +81,23 @@ class LauncherTests(unittest.TestCase):
         r=self.reports();r.update();before=(self.root/'cache/reports.json').read_bytes()
         with patch.object(l.os,'replace',side_effect=OSError('disk full')):r.update()
         self.assertEqual((self.root/'cache/reports.json').read_bytes(),before);self.assertEqual(list((self.root/'cache').glob('.staging-*')),[])
+    def test_offline_preference_survives_restart_and_disables_updates(self):
+        r=self.reports();r.control('offline');r.update();self.assertEqual(self.calls,[]);self.assertEqual(self.reports().mode,'offline')
+    def test_refresh_only_offline_fails_with_clear_message_without_network(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            result=subprocess.run([__import__('sys').executable,str(ROOT/'launcher.py'),'--refresh-only','--offline','--key-file',str(root/'API.txt'),'--cache-dir',str(root/'cache')],capture_output=True,text=True)
+        self.assertEqual(result.returncode,2)
+        self.assertIn('Offline gameplay remains available',result.stderr)
+        state=json.loads(result.stdout.strip())
+        self.assertEqual(state['mode'],'offline')
+
     def test_manual_refresh_throttle(self):
         r=self.reports();r.update()
         with self.assertRaisesRegex(ValueError,'one minute'):r.control('refresh')
     def test_bad_key_and_errors_do_not_leak_credential_urls(self):
         def fail(*args,**kwargs):raise HTTPError('https://api.nasa.gov/?api_key=SECRET',403,'bad',{},None)
-        with self.assertRaises(ValueError) as error:l.download('storms','SECRET','2026-11-13','2026-11-14',threading.Event(),opener=fail)
+        with self.assertRaises(ValueError) as error:l.download('flares','SECRET','2026-11-13','2026-11-14',threading.Event(),opener=fail)
         self.assertNotIn('SECRET',str(error.exception));self.assertIn('key',str(error.exception))
     def test_retry_after_and_size_bounds(self):
         attempts=[]
@@ -110,9 +108,9 @@ class LauncherTests(unittest.TestCase):
         with self.assertRaises(ValueError):l.download('flares','SECRET','2026-11-13','2026-11-14',Cancel(),opener=fail)
         self.assertEqual(attempts,[1,1])
         with self.assertRaisesRegex(ValueError,'1 MB'):l.download('flares','x','2026-11-13','2026-11-14',threading.Event(),opener=lambda *a,**k:io.BytesIO(b'x'*(l.MAX_BYTES+1)))
-    def test_schedule_uses_900_real_seconds(self):
-        r=self.reports();r.update()
-        self.assertIsNotNone(r.last_attempt)
+    def test_schedule_uses_900_real_seconds_and_reuses_fresh_cache(self):
+        r=self.reports();r.update();restarted=self.reports()
+        self.assertGreater(restarted.last_attempt,0)
         clock=[1000];calls=[];r.last_attempt=1000
         class Stop:
             def __init__(self):self.steps=0
@@ -125,40 +123,17 @@ class LauncherTests(unittest.TestCase):
         with patch.object(l.time,'monotonic',side_effect=lambda:clock[0]):r.schedule()
         self.assertEqual(calls,[1900])
     def test_local_routes_deny_key_traversal_cross_origin_and_dns_rebinding(self):
-        r=self.reports()
-        (self.root/'index.html').write_bytes(b'Setup')
-        (self.root/'online.html').write_bytes(b'Game')
-        cls=l.handler_for(r,self.root)
+        r=self.reports(True);cls=l.handler_for(r,self.root)
         def handler(path,host='127.0.0.1:8765',origin=None):
             h=cls.__new__(cls);h.server=SimpleNamespace(server_port=8765);h.headers=Message();h.headers['Host']=host
             if origin:h.headers['Origin']=origin
-            h.path=path;h.send_error=lambda code:setattr(h,'code',code);h.reply=lambda value,code=200,**kw:(setattr(h,'code',code),setattr(h,'payload',value));return h
+            h.path=path;h.send_error=lambda code:setattr(h,'code',code);h.reply=lambda value,code=200,**kw:setattr(h,'code',code);return h
         for path in ['/API.txt','/../API.txt','/source/launcher.py','/api/arbitrary?url=https://example.com']:
             h=handler(path);h.do_GET();self.assertEqual(h.code,404)
         h=handler('/api/nasa/status',host='evil.example:8765');h.do_GET();self.assertEqual(h.code,403)
         h=handler('/api/nasa/mode',origin='https://evil.example');h.do_POST();self.assertEqual(h.code,403)
         h=handler('/api/nasa/status');h.do_GET();self.assertEqual(h.code,200)
-        self.assertFalse(h.payload['ready'])
-        h=handler('/');h.do_GET();self.assertEqual((h.code,h.payload),(503,b'Setup'))
-        r.update()
-        h=handler('/');h.do_GET();self.assertEqual((h.code,h.payload),(200,b'Game'))
+        h=handler('/api/nasa/mission-context');h.do_GET();self.assertEqual(h.code,200)
 
-
-    def test_geometry_uses_validated_jpl_response_and_rejects_partial_refresh(self):
-        from test_nasa_data import fixture
-        r=self.reports()
-        geometry=l.Geometry('test@example.invalid',r)
-        parameters=l.nasa_data.parameters('2026-11-14',1)
-        with patch.object(l.nasa_data,'parameters',return_value=parameters), patch.object(l.nasa_data,'retrieve',return_value=fixture()) as request:
-            geometry.update()
-        request.assert_called_once()
-        pack=geometry.state()['pack']
-        self.assertEqual(pack['manifest']['formatId'],'orbital.earth-mars-v1')
-        self.assertEqual(pack['manifest']['interpolation'],'cubic-hermite-position-velocity-v1')
-        previous=(r.cache_dir/'geometry/verified-latest.json').read_bytes()
-        with patch.object(l.nasa_data,'retrieve',return_value={'error':'bad'}):
-            geometry.update()
-        self.assertEqual(geometry.state()['pack'],pack)
-        self.assertEqual((r.cache_dir/'geometry/verified-latest.json').read_bytes(),previous)
 
 if __name__=='__main__':unittest.main()

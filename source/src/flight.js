@@ -12,15 +12,15 @@ const marsPhases = [
 ];
 const marsWaypoints = ['Landing apron', 'Delta outcrop', 'Crater rim'];
 const marsLanding = marsPhases.at(-1).second / 60;
+function marsLandingTime(){return marsRun?.manual?MarsMission.landingTime(marsRun):marsLanding;}
 const marsDeadline = 180;
 const marsRelay = [[65, 75], [120, 130], [165, 175]];
 const freshMars = () => ({t:0, visited:0, rocks:0, relayed:false, task:null, events:['Atmospheric entry confirmed.'],dataPack:typeof OrbitalDataUI!=='undefined'?OrbitalDataUI.pin():null});
 
 function nextOrbitEvent(run) {
-  const {o,cycle} = E.flags(run);
-  const start = cycle * o.period;
-  const moments = [...o.eclipse, ...o.sunPass, ...o.nightPass, ...o.contacts.flat(), o.period];
-  return Math.min(D.scenario.deadline, ...moments.map(value => value+start).filter(value => value > run.t+1e-7));
+  const f=E.flags(run),moments=[D.scenario.deadline];
+  for(const windows of [f.geo.access,f.geo.contacts,f.geo.eclipses])for(const w of windows){if(w.startMinutes>run.t+1e-7)moments.push(w.startMinutes);if(w.endMinutes>run.t+1e-7)moments.push(w.endMinutes);}
+  return Math.min(...moments);
 }
 
 function flightControls(prefix, next, end, elapsed, speed = state.speed) {
@@ -31,7 +31,7 @@ function flightControls(prefix, next, end, elapsed, speed = state.speed) {
     <label class="flight-rate">SPEED <select id="${prefix}speed" aria-label="Simulation speed">
       ${(prefix==='mars-'?[1/60,1/6,...flightSpeeds]:flightSpeeds).map(value => `<option value="${value}" ${speed===value?'selected':''}>${prefix==='mars-'?Math.round(value*60)+'×'+(value===1/60?' · real time':''):value+' min / sec'}</option>`).join('')}
     </select></label>
-    ${prefix==='mars-'&&marsRun?.manual&&marsRun.t>=marsLanding?btn('Drive · WASD','mars-control','compact',!marsRun.task?'':'disabled'):''}
+    ${prefix==='mars-'&&marsRun?.manual&&marsRun.t>=marsLandingTime()?btn('Drive · WASD','mars-control','compact',!marsRun.task?'':'disabled'):''}
     ${btn(next,prefix+'next-event','compact')}
     ${btn(end,prefix+'complete','compact ghost')}
   </div>`;
@@ -72,30 +72,32 @@ function advanceMars(to) {
 }
 
 function nextMarsEvent() {
-  if(marsRun.manual&&marsRun.t>=marsLanding){if(marsRun.task)return marsRun.task.end;return MarsMission.contacts(marsRun).flat().find(t=>t>marsRun.t+1e-7)??marsDeadline;}
-  if (marsRun.task) return marsRun.task.end;
-  if (marsRun.t < marsLanding) return (marsPhases.find(phase => phase.second / 60 > marsRun.t + 1e-7)?.second ?? 410) / 60;
-  return marsRelay.flat().find(t => t > marsRun.t + 1e-7) ?? marsDeadline;
+  if(marsRun.manual&&marsRun.t>=marsLandingTime()){
+    if(marsRun.task)return marsRun.task.end;
+    return MarsMission.contacts(marsRun).flat().find(t=>t>marsRun.t+1e-7)??marsDeadline;
+  }
+  if(marsRun.task)return marsRun.task.end;
+  if(marsRun.manual){const next=marsRun.descentProfile.events.find(event=>event.seconds/60>marsRun.t+1e-7);return next?next.seconds/60:marsLandingTime();}
+  if(marsRun.t<marsLandingTime())return (marsPhases.find(phase=>phase.second/60>marsRun.t+1e-7)?.second??410)/60;
+  return marsRelay.flat().find(t=>t>marsRun.t+1e-7)??marsDeadline;
 }
 
 function marsTelemetry() {
-  if (marsRun.t >= marsLanding) {
-    return {name:marsStatus(), note:marsRun.events.at(-1)==='Atmospheric entry confirmed.' ? marsPhases.at(-1).note : marsRun.events.at(-1), altitude:0, speed:0};
+  if(marsRun.manual){
+    if(marsRun.t>=marsLandingTime()){const terminal=MarsMission.descentAt(marsRun.descentProfile,marsRun.descentProfile.touchdownSeconds);return {name:marsStatus(),note:marsRun.descentProfile.assumptions,altitude:0,speed:terminal.speedMps,verticalSpeed:terminal.verticalSpeedMps,phase:'surface'};}
+    const sample=MarsMission.descentAt(marsRun.descentProfile,marsRun.t*60);
+    const event=[...marsRun.descentProfile.events].reverse().find(item=>item.seconds<=marsRun.t*60+1e-7);
+    return {name:event?.name||'Atmospheric entry',note:event?.note||marsRun.descentProfile.assumptions,altitude:sample.altitudeM,speed:sample.speedMps,verticalSpeed:sample.verticalSpeedMps,dynamicPressure:sample.dynamicPressurePa,phase:sample.phase};
   }
-  const seconds = marsRun.t * 60;
-  const found = marsPhases.findIndex(phase => phase.second > seconds);
-  const after = found < 1 ? marsPhases.length-1 : found;
-  const first = marsPhases[after-1], second = marsPhases[after];
-  const fraction = (seconds-first.second)/(second.second-first.second);
-  return {...first,
-    altitude:first.altitude+(second.altitude-first.altitude)*fraction,
-    speed:first.speed+(second.speed-first.speed)*fraction};
+  if(marsRun.t>=marsLandingTime())return {name:marsStatus(),note:marsRun.events.at(-1)==='Atmospheric entry confirmed.'?marsPhases.at(-1).note:marsRun.events.at(-1),altitude:0,speed:0};
+  const seconds=marsRun.t*60,found=marsPhases.findIndex(phase=>phase.second>seconds),after=found<1?marsPhases.length-1:found,first=marsPhases[after-1],second=marsPhases[after],fraction=(seconds-first.second)/(second.second-first.second);
+  return {...first,altitude:first.altitude+(second.altitude-first.altitude)*fraction,speed:first.speed+(second.speed-first.speed)*fraction};
 }
 
 function marsActions() {
   if(marsRun.manual)return MarsMission.actions(marsRun);
   const {t, visited, rocks, task, relayed} = marsRun;
-  const surface = t >= marsLanding && t < marsDeadline && !relayed;
+  const surface = t >= marsLandingTime() && t < marsDeadline && !relayed;
   const awaitingScience = visited >= 2 && rocks < visited-1;
   const relay = marsRelay.some(([open,close]) => t >= open && t+2 <= close);
   return {
@@ -123,17 +125,20 @@ function earthFlight() {
   const name=launchMoment&&r.t===0?'Spacecraft deployed':r.safe?'Safe mode':f.imaging?'Mapping the flood zone':f.transmit?'Ground station contact':f.eclipse?'Eclipse passage':'Sunlit coast';
   return {name,note:r.safe?'Essential systems are protected. Review the energy trace and operations schedule.':f.imaging?'Radar observations are being collected over the target area.':f.transmit?'The spacecraft can return stored observations to Earth.':f.eclipse?'Solar generation is unavailable. Battery reserves support the spacecraft.':'Solar arrays replenish the battery while the spacecraft follows its orbit.',
     metrics:[['BATTERY',fmt(r.energy)+' Wh'],['RETURNED COVERAGE',fmt(E.coverage(r))+'%'],['ORBIT',String(f.cycle+1)]],
-    progress:r.t/D.scenario.deadline,elapsed:time(r.t),next:'Next orbital event · T+'+time(nextOrbitEvent(r)),marker:42+22*Math.sin(f.phase/f.o.period*Math.PI*2),altitude:40};
+    progress:r.t/D.scenario.deadline,elapsed:time(r.t),next:'Next orbital event · T+'+time(nextOrbitEvent(r)),marker:42+22*Math.sin(f.phase/f.geo.periodMinutes*Math.PI*2),altitude:40};
 }
 function marsFlightData() {
-  const m=marsTelemetry(),surface=marsRun.t>=marsLanding;
-  return {name:m.name,note:m.note,metrics:surface?[['WAYPOINTS',marsRun.visited+' / 3'],['ROCK ANALYSES',marsRun.rocks+' / 2'],['SCIENCE RELAY',marsRun.relayed?'Complete':marsRun.task?.kind==='relay'?(marsRun.t>=marsRun.task.sentAt?'Signal in flight':'Uploading'):(marsRun.manual?MarsMission.contacts(marsRun):marsRelay).some(([a,b])=>marsRun.t>=a&&marsRun.t<b)?'Available':'No contact']]:[['ALTITUDE',fmt(m.altitude/1000,2)+' km'],['VELOCITY',fmt(m.speed,1)+' m/s'],['PHASE',String(Math.min(8,marsPhases.filter(p=>p.second<=marsRun.t*60).length))+' / 8']],progress:surface?marsRun.t/marsDeadline:marsRun.t/marsLanding,elapsed:time(marsRun.t)+':'+String(Math.round(marsRun.t*60)%60).padStart(2,'0'),next:marsRun.relayed?'All mission objectives achieved':marsRun.t>=marsDeadline?'Mission ended':surface?(marsRun.task?'Next event · '+marsRun.task.name:'Choose a command or advance to the next relay event'):'Next phase · '+(marsPhases.find(p=>p.second/60>marsRun.t+1e-7)?.name||'Touchdown'),marker:surface?64+marsRun.visited*4:65,altitude:surface?65:35+30*marsRun.t/marsLanding};
+  const m=marsTelemetry(),surface=marsRun.t>=marsLandingTime();
+  const landing=marsLandingTime(),profileEvents=marsRun.manual?marsRun.descentProfile.events:marsPhases;
+  const phaseCount=profileEvents.filter(p=>(p.seconds??p.second)<=marsRun.t*60+1e-7).length;
+  const relayWindows=marsRun.manual?MarsMission.contacts(marsRun):marsRelay;
+  return {name:m.name,note:m.note,metrics:surface?[['WAYPOINTS',marsRun.visited+' / 3'],['ROCK ANALYSES',marsRun.rocks+' / 2'],['SCIENCE RELAY',marsRun.relayed?'Complete':relayWindows.some(([a,b])=>marsRun.t>=a&&marsRun.t<b)?'Available':'No contact']]:[['ALTITUDE',fmt(m.altitude/1000,2)+' km'],['VELOCITY',fmt(m.speed,1)+' m/s'],['DYNAMIC PRESSURE',fmt(m.dynamicPressure??0,1)+' Pa'],['PHASE EVENTS',String(phaseCount)+' / '+profileEvents.length]],progress:surface?marsRun.t/marsDeadline:marsRun.t/landing,elapsed:time(marsRun.t)+':'+String(Math.round(marsRun.t*60)%60).padStart(2,'0'),next:marsRun.relayed?'All mission objectives achieved':marsRun.t>=marsDeadline?'Mission ended':surface?(marsRun.task?'Next event · '+marsRun.task.name:'Choose a command or advance to the next relay event'):'Next phase · '+(profileEvents.find(p=>(p.seconds??p.second)/60>marsRun.t+1e-7)?.name||'Touchdown'),marker:surface?64+marsRun.visited*4:65,altitude:surface?65:35+30*marsRun.t/landing};
 }
 function flightInfo(data) {
   return `<span class="eyebrow">MISSION PHASE</span><h1>${esc(data.name)}</h1><div class="flight-readings">${data.metrics.map(([k,v])=>`<div><span>${k}</span><strong>${esc(v)}</strong></div>`).join('')}</div><p>${esc(data.note)}</p><div class="flight-next">${esc(data.next)}</div>`;
 }
 function flightScene(kind,data,controls) {
-  return `<section class="flight-view ${kind}">${kind==='earth'?OrbitalInline.html('hubble',true)+'<span class="illustrative-model tag" style="top:56px;left:32px">HUBBLE · ILLUSTRATIVE STAND-IN</span>':''}${kind==='mars'?'<canvas id="mars-canvas" tabindex="0" aria-label="Mars rover. WASD or arrow keys drive after landing. Space brakes. X analyzes, C drills, T relays. Drag or Q and E orbit the camera. Scroll to zoom."></canvas><div class="mars-camera-tools"><button class="btn compact" data-camera="left" aria-label="Rotate view left">↶</button><button class="btn compact" data-camera="right" aria-label="Rotate view right">↷</button><button class="btn compact" data-camera="in" aria-label="Zoom in">+</button><button class="btn compact" data-camera="out" aria-label="Zoom out">−</button><button class="btn compact" data-camera="reset">Reset view</button><span>Drag to orbit · scroll to zoom</span></div>':''}<div class="flight-top"><span><i class="dot"></i> ${kind==='mars'?'MARS / JEZERO PRACTICE':'EARTH / FLOODWATCH-01'}</span><span>ILLUSTRATIVE FLIGHT VIEW</span></div><div class="flight-copy" id="flight-info">${flightInfo(data)}</div><div id="flight-marker" hidden class="flight-marker ${kind==='mars'?'lander':'satellite'}" style="left:${data.marker}%;top:${data.altitude}%">${kind==='mars'?'<div class="lander-body"></div><i></i><i></i>':'<div class="solar-panel"></div><div class="satellite-body"></div><div class="solar-panel"></div>'}</div><div class="flight-bottom"><div class="flight-progress"><i id="flight-progress" style="width:${data.progress*100}%"></i></div>${controls}<p class="flight-hint">TIME IS YOURS TO CONTROL · PAUSE, ACCELERATE OR ADVANCE TO AN EVENT</p></div></section>`;
+  return `<section class="flight-view ${kind}">${kind==='earth'?OrbitalInline.html('sar',true):''}${kind==='mars'?'<canvas id="mars-canvas" tabindex="0" aria-label="Mars rover. WASD or arrow keys drive after landing. Space brakes. X analyzes, C drills, T relays. Drag or Q and E orbit the camera. Scroll to zoom."></canvas><div class="mars-camera-tools"><button class="btn compact" data-camera="left" aria-label="Rotate view left">↶</button><button class="btn compact" data-camera="right" aria-label="Rotate view right">↷</button><button class="btn compact" data-camera="in" aria-label="Zoom in">+</button><button class="btn compact" data-camera="out" aria-label="Zoom out">−</button><button class="btn compact" data-camera="reset">Reset view</button><span>Drag to orbit · scroll to zoom</span></div>':''}<div class="flight-top"><span><i class="dot"></i> ${kind==='mars'?'MARS / JEZERO PRACTICE':'EARTH / FLOODWATCH-01 · ILLUSTRATIVE SAR BUS'}</span><span>ILLUSTRATIVE FLIGHT VIEW</span></div><div class="flight-copy" id="flight-info">${flightInfo(data)}</div><div id="flight-marker" hidden class="flight-marker ${kind==='mars'?'lander':'satellite'}" style="left:${data.marker}%;top:${data.altitude}%">${kind==='mars'?'<div class="lander-body"></div><i></i><i></i>':'<div class="solar-panel"></div><div class="satellite-body"></div><div class="solar-panel"></div>'}</div><div class="flight-bottom"><div class="flight-progress"><i id="flight-progress" style="width:${data.progress*100}%"></i></div>${controls}<p class="flight-hint">TIME IS YOURS TO CONTROL · PAUSE, ACCELERATE OR ADVANCE TO AN EVENT</p></div></section>`;
 }
 function refreshFlight(data) {
   if(!$('#flight-info'))return;
@@ -141,45 +146,45 @@ function refreshFlight(data) {
   $('#flight-progress').style.width=data.progress*100+'%';
   $('#flight-marker').style.left=data.marker+'%';$('#flight-marker').style.top=data.altitude+'%';
   $('.flight-clock strong').textContent=data.elapsed;
-  if(state.page==='mars'&&typeof OrbitalDataUI!=='undefined'&&$('#mars-geometry'))$('#mars-geometry').innerHTML=OrbitalDataUI.geometryPanel(marsRun.dataPack,marsRun.t,marsRun.modelVersion==='mars-1');
+  if(state.page==='mars'&&typeof OrbitalDataUI!=='undefined'&&$('#mars-geometry'))$('#mars-geometry').innerHTML=OrbitalDataUI.geometryPanel(marsRun.dataPack,marsRun.t);
   if(state.page==='operations'){$('#flight-trace').innerHTML=chart(state.run);$('#flight-events').innerHTML=eventList(state.run);}
+}
+function missionContextCard(run){
+  const c=run.missionContext,p=run.provenance||{};
+  const s=c?.signals;
+  const source=c?`NASA DONKI · ${esc(c.status)} · retrieved ${esc(c.retrievedAt||'unknown')}`:'No DONKI snapshot was available when this mission was started.';
+  const signals=s?`${s.flareReports} flare(s) · strongest ${esc(s.strongestFlareClass||'unknown')} · ${s.geomagneticStormReports} storm(s) · max Kp ${s.maxReportedKp??'unknown'} · ${s.cmeReports} CME(s) · max analysed speed ${s.maxReportedCmeSpeedKmS??'unknown'} km/s`:'No external space-weather context attached.';
+  const warnings=(c?.limitations||['NASA data is not connected to this mission snapshot.']).map(x=>`<li>${esc(x)}</li>`).join('');
+  return `<section class="panel pad"><h3>Mission data & model provenance</h3><p class="small">${source}</p><p class="small">${signals}</p><ul class="tiny muted">${warnings}</ul><p class="tiny muted">Application ${esc(p.applicationVersion||'unknown')} · model ${esc(p.simulationModelVersion||'unknown')} · scenario dataset ${esc(p.scenarioDatasetVersion||'unknown')} · geometry dataset ${esc(p.geometryDatasetVersion||'none')} · pack ${esc(p.geometryPackId||'none')}</p><p class="tiny muted">DONKI context is stored with this mission for traceability. It does not alter simulation physics, launch clearance or score.</p></section>`;
 }
 function operations() {
   if(!state.run)return '';
   const data=earthFlight();
-  return `<div class="flight-title"><div><span class="eyebrow">ORBITAL / MISSION CONTROL</span><h2>Earth operations</h2></div><span class="tag">${running?'SIMULATION RUNNING':'PAUSED · READY FOR YOUR COMMAND'}</span></div>${flightScene('earth',data,flightControls('','Next event','Run to mission end',data.elapsed))}<div class="flight-panels"><section class="panel pad"><h3>Operations plan</h3>${evidenceLabel(state.run)}${planEditor(state.run.design.plan)}${btn('End flight early','abort','ghost compact')}</section><section class="panel pad"><h3>Resource trace</h3><div id="flight-trace">${chart(state.run)}</div><p class="tiny muted">Blue: battery / ${state.run.stats.capacity} Wh · Green: storage / ${state.run.stats.storage} GB</p></section><section class="panel pad"><h3>Flight log</h3><div id="flight-events">${eventList(state.run)}</div></section></div>`;
+  return `<div class="flight-title"><div><span class="eyebrow">ORBITAL / MISSION CONTROL</span><h2>Earth operations</h2></div><span class="tag">${running?'SIMULATION RUNNING':'PAUSED · READY FOR YOUR COMMAND'}</span></div>${flightScene('earth',data,flightControls('','Next event','Run to mission end',data.elapsed))}<div class="flight-panels"><section class="panel pad"><h3>Operations plan</h3>${planEditor(state.run.design.plan)}${btn('End flight early','abort','ghost compact')}</section><section class="panel pad"><h3>Resource trace</h3><div id="flight-trace">${chart(state.run)}</div><p class="tiny muted">Blue: battery / ${state.run.stats.capacity} Wh · Green: storage / ${state.run.stats.storage} GB</p></section><section class="panel pad"><h3>Flight log</h3><div id="flight-events">${eventList(state.run)}</div></section>${missionContextCard(state.run)}</div>`;
 }
 function marsFlight() {
   const data=marsFlightData(),actions=marsActions(),done=marsRun.manual?MarsMission.finished(marsRun):marsRun.relayed||marsRun.t>=marsDeadline;
-  return `<div class="flight-title"><div><span class="eyebrow">ORBITAL / MISSION CONTROL</span><h2>Mars descent & exploration</h2></div><span class="tag">INTERACTIVE 3D · ILLUSTRATIVE TERRAIN</span></div>${flightScene('mars',data,done?`<div class="flight-controls"><strong>${marsRun.relayed?'Science delivered. Mission complete.':'Mission ended before science delivery.'}</strong>${btn('Replay mission','mars-restart','primary compact')}</div>`:flightControls('mars-','Next event',marsRun.t<marsLanding?'Skip to landing':'End mission',data.elapsed,marsSpeed))}<div id="mars-geometry">${typeof OrbitalDataUI!=='undefined'?OrbitalDataUI.geometryPanel(marsRun.dataPack,marsRun.t,marsRun.modelVersion==='mars-1'):''}</div>${marsRun.manual?marsManualPanels():`<div class="flight-panels mars-panels"><section class="panel pad"><h3>Surface commands</h3><p class="description">Land, visit three waypoints, analyze two rocks and relay the results before T+03:00. Advance to the next event to finish a command immediately.</p><div class="row wrap">${btn('Drive to next waypoint','mars-drive','compact',actions.drive?'':'disabled')}${btn('Analyze rock','mars-sample','compact',actions.sample?'':'disabled')}${btn('Relay results','mars-relay','compact',actions.relay?'':'disabled')}</div></section><section class="panel pad"><h3>Mission objectives</h3><p class="description">${marsRun.t>=marsLanding?'✓':'○'} Safe landing &nbsp; · &nbsp; ${marsRun.visited}/3 waypoints &nbsp; · &nbsp; ${marsRun.rocks}/2 rock analyses &nbsp; · &nbsp; ${marsRun.relayed?'✓':'○'} Science returned</p><p class="tiny muted">Practice scenario · progress lasts for this session · simplified timing and telemetry; not a flight reconstruction.</p><a class="reference-link" href="https://eyes.nasa.gov/apps/mars2020/" target="_blank" rel="noopener noreferrer">Explore NASA’s Mars 2020 experience ↗</a></section></div>`}`;
+  return `<div class="flight-title"><div><span class="eyebrow">ORBITAL / MISSION CONTROL</span><h2>Mars descent & exploration</h2></div><span class="tag">INTERACTIVE 3D · ILLUSTRATIVE TERRAIN</span></div>${flightScene('mars',data,done?`<div class="flight-controls"><strong>${marsRun.relayed?'Science delivered. Mission complete.':'Mission ended before science delivery.'}</strong>${btn('Replay mission','mars-restart','primary compact')}</div>`:flightControls('mars-','Next event',marsRun.t<marsLandingTime()?'Skip to landing':'End mission',data.elapsed,marsSpeed))}<div id="mars-geometry">${typeof OrbitalDataUI!=='undefined'?OrbitalDataUI.geometryPanel(marsRun.dataPack,marsRun.t):''}</div>${marsRun.manual?marsManualPanels():`<div class="flight-panels mars-panels"><section class="panel pad"><h3>Surface commands</h3><p class="description">Land, visit three waypoints, analyze two rocks and relay the results before T+03:00. Advance to the next event to finish a command immediately.</p><div class="row wrap">${btn('Drive to next waypoint','mars-drive','compact',actions.drive?'':'disabled')}${btn('Analyze rock','mars-sample','compact',actions.sample?'':'disabled')}${btn('Relay results','mars-relay','compact',actions.relay?'':'disabled')}</div></section><section class="panel pad"><h3>Mission objectives</h3><p class="description">${marsRun.t>=marsLandingTime()?'✓':'○'} Safe landing &nbsp; · &nbsp; ${marsRun.visited}/3 waypoints &nbsp; · &nbsp; ${marsRun.rocks}/2 rock analyses &nbsp; · &nbsp; ${marsRun.relayed?'✓':'○'} Science returned</p><p class="tiny muted">Practice scenario · progress lasts for this session · simplified timing and telemetry; not a flight reconstruction.</p><a class="reference-link" href="https://eyes.nasa.gov/apps/mars2020/" target="_blank" rel="noopener noreferrer">Explore NASA’s Mars 2020 experience ↗</a></section></div>`}`;
 }
-function handleMars(action, nasa=null, geometry=null) {
-  if(action==='open'){if(typeof OrbitalOnline!=='undefined'){marsSetupAction('open');return;}if(state.run&&!state.run.finished){toast('Finish the active Earth mission first.');return;}pause();marsRun??=freshMars();state.page='mars';render();window.scrollTo(0,0);return;}
+function handleMars(action) {
+  if(action==='open'){if(state.run&&!state.run.finished){toast('Finish the active Earth mission first.');return;}pause();marsRun??=freshMars();state.page='mars';render();window.scrollTo(0,0);return;}
   if(!marsRun)return;
   if(action==='back'){stopMars();goto('mission');return;}
-  if(action==='restart'){
-    if(typeof OrbitalOnline!=='undefined'&&!nasa){
-      OrbitalOnline.reviewedLaunch((evidence,pack)=>handleMars(action,evidence,pack),true);
-      return;
-    }
-    stopMars();const design=marsRun.design;const pack=marsRun.modelVersion==='mars-1'?marsRun.dataPack:(geometry||marsRun.dataPack);
-    const mode=marsRun.mode||'practice';marsRun=design?MarsMission.launch(design,mode,state.career):freshMars();
-    marsRun.dataPack=pack;if(nasa&&design)Object.assign(marsRun,{modelVersion:'mars-1',nasa});
-    render();return;}
-  if(action==='control'){if(!marsRun.manual||marsRun.t<marsLanding||MarsMission.finished(marsRun)||marsRun.task)return;stopMars();marsSpeed=1/60;handleMars('play');$('#mars-canvas')?.focus();return;}
+  if(action==='restart'){stopMars();const design=marsRun.design;const pack=marsRun.dataPack,provenance=marsRun.provenance,mode=marsRun.mode||'practice';marsRun=design?MarsMission.launch(design,mode,state.career):freshMars();if(marsRun.manual)MarsMission.pinProvenance(marsRun,pack,provenance||{applicationVersion:'unknown-legacy-save',simulationModelVersion:'unversioned-legacy-save',physicsModelVersion:'unknown-legacy-physics',scenarioId:'mars-survey-01',scenarioDatasetVersion:'legacy-unpinned',geometryPackId:pack?.manifest?.packId||null,geometryDatasetVersion:pack?(pack.manifest.datasetVersion||'legacy-horizons-pack'):'none',legacy:true});render();return;}
+  if(action==='control'){if(!marsRun.manual||marsRun.t<marsLandingTime()||MarsMission.finished(marsRun)||marsRun.task)return;stopMars();marsSpeed=1/60;handleMars('play');$('#mars-canvas')?.focus();return;}
   if(action==='play'){
     if(marsTimer){stopMars();render();return;}
     if(marsRun.relayed||marsRun.t>=marsDeadline)return;
     marsTimer=setInterval(()=>{
       const before=marsRun.t,task=marsRun.task;
-      const boundary=before<marsLanding?marsLanding:task?.end??nextMarsEvent();
+      const boundary=before<marsLandingTime()?marsLandingTime():task?.end??nextMarsEvent();
       advanceMars(Math.min(before+marsSpeed/4,boundary));
       if(marsRun.t>=boundary){stopMars();render();}else {refreshFlight(marsFlightData());if(marsRun.manual)updateRoverHud();}
     },250);render();return;
   }
   stopMars();
   if(action==='next-event')advanceMars(nextMarsEvent());
-  if(action==='complete'){if(marsRun.t<marsLanding)advanceMars(marsLanding);else{marsRun.task=null;advanceMars(marsDeadline);}}
+  if(action==='complete'){if(marsRun.t<marsLandingTime())advanceMars(marsLandingTime());else{marsRun.task=null;advanceMars(marsDeadline);}}
   if(['drive','sample','core','relay'].includes(action))startMarsTask(action);
   render();
 }

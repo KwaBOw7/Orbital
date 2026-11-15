@@ -1,0 +1,13 @@
+ORBITAL v0.3.4
+
+ORBITAL is an independent educational project. It is not affiliated with,
+endorsed by, or sponsored by NASA, JPL, UNOSAT, ESA, or any government agency.
+Names of agencies and services are used only to identify public data sources,
+software resources, or mission-analysis concepts.
+
+The bundled Three.js r128 library is third-party software distributed under
+the MIT License. See THIRD-PARTY-NOTICES.md and assets/vendor/three-LICENSE.txt.
+
+Procedural spacecraft and planetary scenes are illustrative project visuals.
+They are not official agency models, manufacturer models, or engineering
+representations of flown spacecraft.

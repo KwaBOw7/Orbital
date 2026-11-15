@@ -8,50 +8,30 @@ const fixture=require('./fixtures/synthetic-pack.json');
 
 function browser(protocol='http:',hostname='127.0.0.1'){
   const root={innerHTML:''},callbacks=[];
-  let unlocked=0,locked=0,requests=0;
-  let status={ready:false,status:'locked'};
-  const context=vm.createContext({
-    AbortController,location:{protocol,hostname},setTimeout,clearTimeout,
-    setInterval: callback=>callbacks.push(callback),
-    document:{querySelector:id=>id==='#root'?root:null,addEventListener(){}},
-    fetch:async path=>{requests++;assert.equal(path,'/api/nasa/status');return {ok:true,json:async()=>status};}
-  });
-  vm.runInContext(fs.readFileSync('src/online.js','utf8'),context);
-  const api=vm.runInContext('OrbitalOnline',context);
-  api.start(()=>unlocked++,()=>locked++);
-  return {api,root,callbacks,set status(next){status=next;},get unlocked(){return unlocked;},
-    get locked(){return locked;},get requests(){return requests;}};
+  let requests=0,status={status:'offline',mode:'offline',report:null},context={schemaVersion:1,source:'NASA DONKI',status:'missing',signals:{}};
+  const contextVm=vm.createContext({AbortController,location:{protocol,hostname},setTimeout,clearTimeout,setInterval:callback=>callbacks.push(callback),document:{hidden:false,querySelector:id=>id==='#nasa-reports'?root:null,addEventListener(){}},fetch:async path=>{requests++;if(path==='/api/nasa/status')return {ok:true,json:async()=>status};if(path==='/api/nasa/mission-context')return {ok:true,json:async()=>context};throw Error('unexpected route');}});
+  vm.runInContext(fs.readFileSync('src/online.js','utf8'),contextVm);
+  const api=vm.runInContext('OrbitalOnline',contextVm);
+  api.start();
+  return {api,root,callbacks,set status(next){status=next;},set context(next){context=next;},get requests(){return requests;}};
 }
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 
-test('browser only unlocks after launcher verifies a structurally valid NASA snapshot',async()=>{
-  const h=browser();
-  await flush();
-  assert.equal(h.unlocked,0);
-  assert.match(h.root.innerHTML,/NASA verification required/);
-  h.status={ready:true,status:'current',report:{feeds:{}}};
-  h.callbacks[0]();await flush();assert.equal(h.unlocked,0);
-  h.status={ready:true,status:'current',report:{
-    provider:'NASA CCMC DONKI',schemaVersion:1,datasetId:'donki-'+'a'.repeat(64),
-    retrievedAt:'2026-11-15T08:00:00Z',feeds:{
-      flares:{items:[]},storms:{items:[]},cmes:{items:[]}
-    }
-  }};
-  h.callbacks[0]();await flush();
-  assert.equal(h.unlocked,1);
-  assert.equal(h.api.ready(),true);
-  h.status={ready:false};
-  h.callbacks[0]();await flush();
-  assert.equal(h.locked,1);
-  assert.equal(h.api.ready(),false);
+test('NASA planning context is optional and does not gate game startup',async()=>{
+  const h=browser(); await flush();
+  assert.equal(h.requests,2);
+  assert.match(h.root.innerHTML,/Latest available space-weather reports/);
+  assert.doesNotMatch(h.root.innerHTML,/NASA verification required/);
+  h.context={schemaVersion:1,source:'NASA DONKI',status:'current',retrievedAt:'2026-11-15T08:00:00Z',signals:{flareReports:1,strongestFlareClass:'M1.2',geomagneticStormReports:0,maxReportedKp:null,cmeReports:0,maxReportedCmeSpeedKmS:null},limitations:['Context only.']};
+  h.callbacks[0](); await flush();
+  assert.equal(h.api.missionContext().status,'current');
+  assert.match(h.root.innerHTML,/Mission-planning context/);
 });
-test('opening the game file directly or on another origin cannot attempt authentication',async()=>{
+test('opening the game file directly or on another origin makes no authentication or provider request',async()=>{
   for(const [protocol,host] of [['file:',''],['https:','example.org']]){
-    const h=browser(protocol,host);
-    await flush();
+    const h=browser(protocol,host); await flush();
     assert.equal(h.requests,0);
-    assert.equal(h.unlocked,0);
-    assert.match(h.root.innerHTML,/NASA verification required/);
+    assert.equal(h.api.missionContext(),null);
   }
 });
 function relayRun(time,rangeKm){
@@ -61,7 +41,6 @@ function relayRun(time,rangeKm){
   pack.data=JSON.stringify(table);
   Object.assign(pack.manifest,{formatId:'orbital.earth-mars-v1',interpolation:'cubic-hermite-position-velocity-v1',
     dataSha256:Packs.sha256(pack.data),dataBytes:pack.data.length});
-  delete pack.manifest.compatibleGameVersions;
   pack.manifest.packId='mars-'+pack.manifest.dataSha256.slice(0,16);
   const run=Mars.launch(Mars.starter());
   Mars.advance(run,time);
@@ -69,10 +48,10 @@ function relayRun(time,rangeKm){
   return run;
 }
 test('Mars scoring waits for Earth reception after upload and preserves pinned delay in saves',()=>{
-  const run=relayRun(100,50e6);
+  const run=relayRun(45,50e6);
   assert.equal(Mars.task(run,'relay'),true);
-  assert.equal(run.task.sentAt,102);
-  assert.ok(Math.abs(run.task.end-102-50e6/299792.458/60)<1e-10);
+  assert.equal(run.task.sentAt,47);
+  assert.ok(Math.abs(run.task.end-47-50e6/299792.458/60)<1e-10);
   Mars.advance(run,run.task.sentAt);
   assert.equal(run.relayed,false);
   const restored=Mars.restore(run);
@@ -84,9 +63,11 @@ test('Mars scoring waits for Earth reception after upload and preserves pinned d
   assert.equal(Mars.score(restored).base,100);
 });
 test('a longer Horizons range can turn an open relay slot into a missed Earth deadline',()=>{
-  const near=relayRun(170,50e6),far=relayRun(170,350e6);
+  const near=relayRun(170.5,50e6),far=relayRun(170.5,350e6);
   assert.equal(Mars.actions(near).relay,true);
   assert.equal(Mars.actions(far).relay,false);
-  delete near.dataPack;
-  assert.equal(Mars.actions(near).relay,false);
+  const offline=relayRun(170.5,50e6);delete offline.dataPack;
+  assert.equal(Mars.actions(offline).relay,true);
+  assert.equal(Mars.task(offline,'relay'),true);
+  assert.equal(offline.task.signalDelaySource,'offline-baseline');
 });

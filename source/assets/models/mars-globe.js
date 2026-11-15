@@ -1,122 +1,22 @@
-/* Adapted from supplied mars-globe scene; source retained in references/. */
-function marsGlobeScene(view, rendererInstance, canvas) {
-const life=orbitalSceneRuntime(view,rendererInstance,canvas);
-const reducedMotion=matchMedia("(prefers-reduced-motion: reduce)").matches;
-try{
-
-var RAD=5,D2R=Math.PI/180,R2D=180/Math.PI;
-var cv=canvas;
-var R=rendererInstance;
-R.setPixelRatio(Math.min(devicePixelRatio,1.5));
-var S=life.track(new THREE.Scene());
-var cam=new THREE.PerspectiveCamera(38,1,.1,500);
-S.add(new THREE.AmbientLight(0x6a4a40,.45));
-var sun=new THREE.DirectionalLight(0xfff0e0,1.9);sun.position.set(14,6,12);S.add(sun);
-
-// ---- procedural terrain on the unit sphere (seamless 3D noise)
-function hash(x,y,z){var s=Math.sin(x*127.1+y*311.7+z*74.7)*43758.5453;return s-Math.floor(s)}
-function q(t){return t*t*t*(t*(t*6-15)+10)}
-function vnoise(x,y,z){var xi=Math.floor(x),yi=Math.floor(y),zi=Math.floor(z),xf=q(x-xi),yf=q(y-yi),zf=q(z-zi);
-function L(a,b,t){return a+(b-a)*t}
-return L(L(L(hash(xi,yi,zi),hash(xi+1,yi,zi),xf),L(hash(xi,yi+1,zi),hash(xi+1,yi+1,zi),xf),yf),
-L(L(hash(xi,yi,zi+1),hash(xi+1,yi,zi+1),xf),L(hash(xi,yi+1,zi+1),hash(xi+1,yi+1,zi+1),xf),yf),zf)}
-function fbm(x,y,z,o){var a=.5,s=0,f=1;for(var i=0;i<o;i++){s+=a*vnoise(x*f,y*f,z*f);f*=2.1;a*=.5}return s/.9375}
-function dirFrom(lat,lon){var a=lat*D2R,b=lon*D2R;return new THREE.Vector3(Math.cos(a)*Math.cos(b),Math.sin(a),-Math.cos(a)*Math.sin(b))}
-
-// named features: [lat, lon east, height, angular radius, name, fact]
-var LM=[
-[18.65,-133.8,2.3,.075,'Olympus Mons','The largest known volcano in the solar system: about 22 km high and roughly 600 km across.'],
-[1.5,-112.8,1.3,.06,'Tharsis Montes','Three huge shield volcanoes in a row (Arsia, Pavonis, Ascraeus) on the Tharsis bulge.'],
-[-42.4,70.5,-1.7,.17,'Hellas Planitia','An impact basin about 2,300 km wide and 7 km deep, one of the lowest places on Mars.'],
-[18.4,77.7,-.2,.012,'Jezero Crater','A crater of about 45 km with an ancient river delta. Perseverance landed here in February 2021.'],
-[-5.4,137.8,-.3,.014,'Gale Crater','A 154 km crater with a 5 km central mound. Curiosity landed here in August 2012.'],
-[-12.5,-68,-1.2,0,'Valles Marineris','A canyon system over 4,000 km long and up to about 7 km deep, the longest on Mars.']
-];
-var feats=LM.slice(0,3).map(function(f){return {d:dirFrom(f[0],f[1]),a:f[2],r:f[3]}});
-feats.push({d:dirFrom(-8.3,-120.1),a:1.1,r:.055},{d:dirFrom(11.8,-104.5),a:1.1,r:.055},{d:dirFrom(2,-100),a:.55,r:.5},{d:dirFrom(-49,-43),a:-.7,r:.1});
-var seed=7;function rnd(){seed=(seed+0x6D2B79F5)|0;var t=Math.imul(seed^(seed>>>15),1|seed);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296}
-var craters=[];for(var i=0;i<170;i++){var u=rnd()*2-1,t=rnd()*6.2832,s=Math.sqrt(1-u*u),r=.012+Math.pow(rnd(),2.6)*.075;
-craters.push({d:new THREE.Vector3(s*Math.cos(t),u,s*Math.sin(t)),r:r,c:Math.cos(r*2)})}
-function heightAt(d){
-var lat=Math.asin(d.y)*R2D,lon=Math.atan2(-d.z,d.x)*R2D;
-var h=-.3*Math.tanh(lat/30)+(fbm(d.x*2.4+11,d.y*2.4+3,d.z*2.4+7,4)-.5)*1.1;
-for(var i=0;i<feats.length;i++){var f=feats[i],a=Math.acos(Math.min(1,d.dot(f.d))),k=a/f.r;if(k<3.5)h+=f.a*Math.exp(-k*k)}
-var dl=(lat+12.5)/3.4,dn=(lon+68)/21;h-=1.25*Math.exp(-Math.pow(dl*dl+dn*dn,1.5));
-for(var j=0;j<craters.length;j++){var c=craters[j],dt=d.dot(c.d);if(dt<c.c)continue;var ang=Math.acos(Math.min(1,dt)),x=ang/c.r;
-if(x<1)h-=.32*(1-x*x);h+=.1*Math.exp(-Math.pow((x-1)/.22,2))}
-return h}
-var STOPS=[[0,.20,.085,.06],[.3,.50,.22,.13],[.58,.72,.37,.20],[.8,.85,.60,.38],[1,.94,.83,.66]];
-function ramp(t){t=Math.max(0,Math.min(1,t));for(var i=1;i<STOPS.length;i++){if(t<=STOPS[i][0]){var a=STOPS[i-1],b=STOPS[i],m=(t-a[0])/(b[0]-a[0]);return[a[1]+(b[1]-a[1])*m,a[2]+(b[2]-a[2])*m,a[3]+(b[3]-a[3])*m]}}return[.94,.83,.66]}
-
-// ---- globe mesh
-var geo=new THREE.SphereGeometry(RAD,rendererInstance.isCanvasFallback?48:128,rendererInstance.isCanvasFallback?24:64);
-var pos=geo.attributes.position,N=pos.count;
-var dirs=new Float32Array(N*3),H=new Float32Array(N),col=new Float32Array(N*3),v=new THREE.Vector3();
-for(var i=0;i<N;i++){
-v.set(pos.getX(i),pos.getY(i),pos.getZ(i)).normalize();
-dirs[i*3]=v.x;dirs[i*3+1]=v.y;dirs[i*3+2]=v.z;
-var h=heightAt(v);H[i]=h;
-var c=ramp((h+1.4)/3.4),lat=Math.asin(v.y)*R2D;
-var dk=fbm(v.x*3+40,v.y*3+9,v.z*3+21,3);if(dk>.56){var m=Math.min(1,(dk-.56)*6)*.4;c=[c[0]*(1-m),c[1]*(1-m),c[2]*(1-m)]}
-var cl=(fbm(v.x*30,v.y*30,v.z*30,2)-.5)*.14;c=[c[0]+cl,c[1]+cl*.8,c[2]+cl*.6];
-var cap=82+fbm(v.x*9+5,v.y*9,v.z*9,3)*6-3,e=Math.max(0,Math.min(1,(Math.abs(lat)-cap)/3));
-if(e>0){c=[c[0]+(.95-c[0])*e,c[1]+(.94-c[1])*e,c[2]+(.96-c[2])*e]}
-col[i*3]=c[0];col[i*3+1]=c[1];col[i*3+2]=c[2]}
-geo.setAttribute('color',new THREE.BufferAttribute(col,3));
-var mars=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,metalness:0}));
-var tilt=new THREE.Group();tilt.rotation.z=-25.2*D2R;S.add(tilt);
-var spin=new THREE.Group();tilt.add(spin);spin.add(mars);
-
-var haze=new THREE.Mesh(new THREE.SphereGeometry(RAD*1.045,64,48),new THREE.MeshBasicMaterial({color:0xe59a6c,transparent:true,opacity:.17,side:THREE.BackSide,blending:THREE.AdditiveBlending,depthWrite:false}));
-tilt.add(haze);
-
-// ---- landmark pins
-var pins=[],pinG=new THREE.Group();spin.add(pinG);
-LM.forEach(function(f,i){var d=dirFrom(f[0],f[1]);
-var p=new THREE.Mesh(new THREE.SphereGeometry(.09,16,12),new THREE.MeshBasicMaterial({color:0xffd24a}));
-p.userData={i:i,d:d,h:heightAt(d)};pins.push(p);pinG.add(p)});
-
-var kRelief=.10;
-function apply(){
-for(var i=0;i<N;i++){var r=RAD+H[i]*kRelief;pos.setXYZ(i,dirs[i*3]*r,dirs[i*3+1]*r,dirs[i*3+2]*r)}
-pos.needsUpdate=true;geo.computeVertexNormals();
-pins.forEach(function(p){var r=RAD+p.userData.h*kRelief+.12;p.position.copy(p.userData.d).multiplyScalar(r)})}
-apply();
-
-// stars
-var sp=[];for(var n=0;n<900;n++){var u=rnd()*2-1,t=rnd()*6.283,r=Math.sqrt(1-u*u),R2=220+rnd()*60;sp.push(R2*r*Math.cos(t),R2*u,R2*r*Math.sin(t))}
-var sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));
-S.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0xffffff,size:1,sizeAttenuation:false})));
-
-// ---- orbit controls
-var th=.5,ph=1.3,dist=17,auto=true,drag=false,moved=0,lx=0,ly=0;
-function place(){cam.position.set(dist*Math.sin(ph)*Math.sin(th),dist*Math.cos(ph),dist*Math.sin(ph)*Math.cos(th));cam.lookAt(0,0,0)}
-life.on(cv,'pointerdown',function(e){drag=true;moved=0;lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId)});
-life.on(cv,'pointermove',function(e){if(!drag)return;var dx=e.clientX-lx,dy=e.clientY-ly;lx=e.clientX;ly=e.clientY;moved+=Math.abs(dx)+Math.abs(dy);th-=dx*.006;ph=Math.max(.2,Math.min(2.94,ph-dy*.006))});
-life.on(cv,'pointerup',function(e){drag=false;if(moved<5)pick(e)});
-life.on(cv,'wheel',function(e){e.preventDefault();dist=Math.max(7,Math.min(40,dist*(1+e.deltaY*.001)))},{passive:false});
-
-var ray=new THREE.Raycaster(),m2=new THREE.Vector2(),el=view.querySelector("#"+'info'),dflt=el.textContent;
-function fmt(lat,lon){return Math.abs(lat).toFixed(1)+(lat>=0?'° N, ':'° S, ')+Math.abs(lon).toFixed(1)+(lon>=0?'° E':'° W')}
-function pick(e){m2.set((e.clientX-canvas.getBoundingClientRect().left)/life.width()*2-1,-((e.clientY-canvas.getBoundingClientRect().top)/life.height())*2+1);ray.setFromCamera(m2,cam);
-var ph1=pinG.visible?ray.intersectObjects(pins)[0]:null;
-if(ph1){var f=LM[ph1.object.userData.i];el.textContent=f[4]+'. '+f[5];return}
-var hit=ray.intersectObject(mars)[0];
-if(hit){var l=mars.worldToLocal(hit.point.clone()).normalize();
-el.textContent='Surface at '+fmt(Math.asin(l.y)*R2D,Math.atan2(-l.z,l.x)*R2D)+'. Relief is exaggerated for visibility.'}else el.textContent=dflt}
-
-function tog(id,fn){var b=view.querySelector("#"+id);life.on(b,'click',function(){var on=b.getAttribute('aria-pressed')!=='true';b.setAttribute('aria-pressed',on);fn(on)})}
-tog('bRelief',function(on){kRelief=on?.32:.10;apply()});
-tog('bPins',function(on){pinG.visible=on});
-tog('bSpin',function(on){auto=on});
-
-function size(){R.setSize(life.width(),life.height(),false);cam.aspect=life.width()/life.height();cam.updateProjectionMatrix();if(life.width()<600)dist=Math.max(dist,24)}
-life.resize(size);size();
-if(matchMedia('(prefers-reduced-motion: reduce)').matches){auto=false;view.querySelector("#"+'bSpin').setAttribute('aria-pressed','false')}
-var clock=new THREE.Clock();
-function loop(){var dt=Math.min(clock.getDelta(),.05);if(auto&&!drag)spin.rotation.y+=dt*.12;place();R.render(S,cam);life.frame(loop)}
-loop();
-
-return life.stop;
-}catch(error){life.stop();throw error;}
+/* Original synthetic Mars globe; color and relief are decorative, not MOLA or other elevation data. */
+function marsGlobeScene(view,renderer,canvas){
+ const life=orbitalSceneRuntime(view,renderer,canvas),scene=life.track(new THREE.Scene());
+ try{
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));const camera=new THREE.PerspectiveCamera(38,life.width()/life.height(),.1,80);camera.position.z=14;
+  scene.add(new THREE.HemisphereLight(0xe5c4a8,0x3a211a,.6));const sun=new THREE.DirectionalLight(0xffe6cc,1.8);sun.position.set(8,5,7);scene.add(sun);
+  const geo=new THREE.SphereGeometry(4.5,renderer.isCanvasFallback?56:112,renderer.isCanvasFallback?36:72),p=geo.attributes.position,base=new Float32Array(p.count*3),colors=new Float32Array(p.count*3);
+  const hash=(x,y,z)=>{const q=Math.sin(x*127.1+y*311.7+z*74.7)*43758.5453;return q-Math.floor(q);};
+  const elevation=v=>(.55*hash(Math.round(v.x*17),Math.round(v.y*17),Math.round(v.z*17))+.3*hash(Math.round(v.x*43),Math.round(v.y*43),Math.round(v.z*43))+.15*hash(Math.round(v.x*89),Math.round(v.y*89),Math.round(v.z*89))-.5)*.12;
+  for(let i=0;i<p.count;i++){const v=new THREE.Vector3(p.getX(i),p.getY(i),p.getZ(i)).normalize(),h=elevation(v),j=3*i;base.set([v.x,v.y,v.z],j);const tint=Math.max(0,Math.min(1,.5+h*4));colors.set([.43+tint*.28,.19+tint*.17,.11+tint*.1],j);p.setXYZ(i,v.x*(4.5+h),v.y*(4.5+h),v.z*(4.5+h));}
+  geo.setAttribute('color',new THREE.BufferAttribute(colors,3));geo.userData.base=base;geo.userData.elevation=elevation;geo.computeVertexNormals();const mars=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1}));scene.add(mars);
+  const pins=new THREE.Group();scene.add(pins);for(const [name,lat,lon] of [['Jezero training site',18.4,77.5],['Gale reference region',-5.4,137.8],['Hellas region',-42.4,70.5]]){const a=lat*Math.PI/180,b=lon*Math.PI/180,v=new THREE.Vector3(Math.cos(a)*Math.cos(b),Math.sin(a),-Math.cos(a)*Math.sin(b)).multiplyScalar(4.62),pin=new THREE.Mesh(new THREE.SphereGeometry(.07,12,8),new THREE.MeshBasicMaterial({color:0xffd45c}));pin.position.copy(v);pin.userData.label=name;pins.add(pin);}
+  let exaggerated=false,spin=true,yaw=.5,pitch=.2,distance=14,drag=null;const relief=view.querySelector('#bRelief'),pinButton=view.querySelector('#bPins'),spinButton=view.querySelector('#bSpin');
+  if(relief)life.on(relief,'click',()=>{exaggerated=!exaggerated;relief.setAttribute('aria-pressed',String(exaggerated));for(let i=0;i<p.count;i++){const j=3*i,v=new THREE.Vector3(base[j],base[j+1],base[j+2]),r=4.5+geo.userData.elevation(v)*(exaggerated?4:1);p.setXYZ(i,v.x*r,v.y*r,v.z*r);}p.needsUpdate=true;geo.computeVertexNormals();});
+  if(pinButton)life.on(pinButton,'click',()=>{const on=pinButton.getAttribute('aria-pressed')!=='true';pinButton.setAttribute('aria-pressed',String(on));pins.visible=on;});
+  if(spinButton)life.on(spinButton,'click',()=>{spin=spinButton.getAttribute('aria-pressed')!=='true';spinButton.setAttribute('aria-pressed',String(spin));});
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches)spin=false;
+  life.on(canvas,'pointerdown',e=>{drag={x:e.clientX,y:e.clientY};canvas.setPointerCapture?.(e.pointerId);});life.on(canvas,'pointermove',e=>{if(!drag)return;yaw+=(e.clientX-drag.x)*.006;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-drag.y)*.006,-1.2,1.2);drag={x:e.clientX,y:e.clientY};});life.on(canvas,'pointerup',e=>{if(drag&&Math.hypot(e.clientX-drag.x,e.clientY-drag.y)<4)view.querySelector('#info').textContent='Synthetic Mars training globe. Pins are illustrative reference labels, not a measured geographic product.';drag=null;});life.on(canvas,'pointercancel',()=>drag=null);life.on(canvas,'wheel',e=>{e.preventDefault();distance=THREE.MathUtils.clamp(distance*Math.exp(e.deltaY*.001),7,24);},{passive:false});
+  life.resize(()=>{camera.aspect=life.width()/life.height();camera.updateProjectionMatrix();renderer.setSize(life.width(),life.height(),false);});
+  function draw(){if(spin&&!drag&&!matchMedia('(prefers-reduced-motion: reduce)').matches)yaw+=.001;mars.rotation.set(pitch,yaw,0);pins.rotation.copy(mars.rotation);camera.position.z=distance;camera.lookAt(0,0,0);renderer.render(scene,camera);renderer.render(scene,camera);life.frame(draw);}draw();return life.stop;
+ }catch(error){life.stop();throw error;}
 }
